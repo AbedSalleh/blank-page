@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Blank Page</title>
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <!-- Auth view -->
@@ -13,11 +13,11 @@
         <h1>Blank Page</h1>
         <p class="subtitle">Log in to write from any device.</p>
         <input
-          id="username"
-          name="username"
-          type="text"
-          placeholder="Username"
-          autocomplete="username"
+          id="email"
+          name="email"
+          type="email"
+          placeholder="Email"
+          autocomplete="email"
           required
         />
         <input
@@ -29,7 +29,7 @@
           required
         />
         <button id="primary-btn" type="submit">Log in</button>
-        <p id="auth-error" class="error"></p>
+        <p id="auth-msg" class="msg"></p>
         <p class="toggle">
           <span id="toggle-text">Don't have an account?</span>
           <a id="toggle-link" href="#">Sign up</a>
@@ -46,13 +46,23 @@
         <span id="who" class="who"></span>
         <button id="logout" class="link-btn">Log out</button>
       </header>
-      <textarea
-        id="pad"
-        placeholder="Start writing…"
-        spellcheck="true"
-      ></textarea>
+      <textarea id="pad" placeholder="Start writing…" spellcheck="true"></textarea>
     </div>
 
-    <script src="/app.js"></script>
+    <!-- Config error banner -->
+    <div id="config-error" class="config-error hidden">
+      <div class="card">
+        <h1>Setup needed</h1>
+        <p>
+          Edit <code>config.js</code> and add your Supabase project URL and anon
+          key. See the <code>README.md</code> for setup steps.
+        </p>
+      </div>
+    </div>
+
+    <!-- Supabase JS client (v2) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
   </body>
 </html>
