@@ -85,3 +85,20 @@ The app shell is cached by a service worker, so the page loads without a
 connection and shows your last-synced notes. Creating, editing, and syncing
 notes still require a connection (Supabase is the source of truth); changes made
 while offline are not queued, so reconnect before relying on a save.
+
+## SEO
+
+The landing page includes SEO essentials: a descriptive `<title>` and meta
+description, canonical URL, Open Graph + Twitter Card tags, JSON-LD
+`WebApplication` structured data, a `<noscript>` fallback, plus `robots.txt` and
+`sitemap.xml`. Because the app UI is rendered by JavaScript, a crawlable
+description is also included in the page body.
+
+**Social preview image:** `og-image.svg` is the share image. Most social
+platforms (Facebook, LinkedIn, X) don't render SVG, so for rich link previews
+export it to a 1200×630 **PNG** (e.g. `og-image.png`) and update the
+`og:image` / `twitter:image` URLs in `index.html` to point at it.
+
+After deploying, submit `sitemap.xml` in
+[Google Search Console](https://search.google.com/search-console) to speed up
+indexing.

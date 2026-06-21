@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://abedsalleh.github.io/blank-page/sitemap.xml

@@ -2,14 +2,87 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#fbfbf9" />
-    <title>Blank Page</title>
+
+    <!-- SEO -->
+    <title>Blank Page — Free Online Notepad with Login &amp; Cross-Device Sync</title>
+    <meta name="description"
+      content="A simple, free online notepad. Write anything in a distraction-free editor with Markdown, dark mode, and a private login that syncs your notes across all your devices." />
+    <meta name="author" content="Blank Page" />
+    <meta name="keywords"
+      content="online notepad, write online, free notepad, markdown editor, notes app, cross-device notes, distraction-free writing, text editor online" />
+    <link rel="canonical" href="https://abedsalleh.github.io/blank-page/" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph (Facebook, LinkedIn, etc.) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Blank Page" />
+    <meta property="og:title" content="Blank Page — Free Online Notepad with Login &amp; Sync" />
+    <meta property="og:description"
+      content="Write anything in a distraction-free editor with Markdown and dark mode. Private login syncs your notes across every device." />
+    <meta property="og:url" content="https://abedsalleh.github.io/blank-page/" />
+    <meta property="og:image" content="https://abedsalleh.github.io/blank-page/og-image.svg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Blank Page — Free Online Notepad with Login &amp; Sync" />
+    <meta name="twitter:description"
+      content="Distraction-free writing with Markdown, dark mode, and cross-device sync. Free." />
+    <meta name="twitter:image" content="https://abedsalleh.github.io/blank-page/og-image.svg" />
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Blank Page",
+        "url": "https://abedsalleh.github.io/blank-page/",
+        "description": "A simple, free online notepad with Markdown, dark mode, and a private login that syncs notes across devices.",
+        "applicationCategory": "Productivity",
+        "operatingSystem": "Any (web browser)",
+        "browserRequirements": "Requires JavaScript",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+
     <link rel="manifest" href="./manifest.json" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Blank Page" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
+    <noscript>
+      <div style="max-width: 640px; margin: 3rem auto; padding: 1rem">
+        <h1>Blank Page — Free Online Notepad</h1>
+        <p>
+          Blank Page is a free, distraction-free online notepad with Markdown
+          support, dark mode, and a private login that syncs your notes across
+          all your devices. This app needs JavaScript — please enable it to
+          start writing.
+        </p>
+      </div>
+    </noscript>
+
+    <!-- Crawlable description for search engines (the app UI is rendered by JS) -->
+    <div class="visually-hidden">
+      <h2>About Blank Page</h2>
+      <p>
+        Blank Page is a simple, free online notepad and Markdown text editor.
+        Sign in to write notes that automatically save and sync across your
+        phone, tablet, and computer. Features include a distraction-free editor,
+        dark mode, full-text search, note sharing via link, and export to
+        Markdown or plain text.
+      </p>
+    </div>
+
     <!-- Auth view -->
     <main id="auth" class="auth hidden">
       <form id="auth-form" class="card">
@@ -47,6 +120,7 @@
 
     <!-- App view (sidebar + editor) -->
     <div id="app" class="app hidden">
+      <div id="backdrop" class="backdrop hidden"></div>
       <aside id="sidebar" class="sidebar">
         <div class="sidebar-head">
           <span class="brand">Blank Page</span>
@@ -72,6 +146,7 @@
           <div class="menu">
             <button id="more" class="icon-btn" title="More">⋯</button>
             <div id="menu-pop" class="menu-pop hidden">
+              <div id="menu-counts" class="menu-info"></div>
               <button id="share-btn">Share…</button>
               <button id="export-md">Export as .md</button>
               <button id="export-txt">Export as .txt</button>
@@ -96,6 +171,8 @@
             spellcheck="true"></textarea>
           <div id="preview" class="preview hidden"></div>
         </div>
+
+        <button id="fab-new" class="fab" title="New note" aria-label="New note">+</button>
       </main>
     </div>
 

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#fbfbf9"/>
+  <rect x="0" y="0" width="1200" height="12" fill="#2563eb"/>
+  <g transform="translate(96,150)">
+    <rect x="0" y="0" width="150" height="200" rx="14" fill="#2563eb"/>
+    <rect x="38" y="42" width="74" height="116" rx="8" fill="#ffffff"/>
+    <g stroke="#cbd5e1" stroke-width="6" stroke-linecap="round">
+      <line x1="52" y1="70" x2="98" y2="70"/>
+      <line x1="52" y1="92" x2="98" y2="92"/>
+      <line x1="52" y1="114" x2="98" y2="114"/>
+      <line x1="52" y1="136" x2="84" y2="136"/>
+    </g>
+  </g>
+  <text x="300" y="250" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+    font-size="84" font-weight="700" fill="#1f2328">Blank Page</text>
+  <text x="300" y="320" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+    font-size="38" fill="#6b7280">A free online notepad.</text>
+  <text x="300" y="372" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+    font-size="38" fill="#6b7280">Write anything. Synced across devices.</text>
+  <g transform="translate(300,430)" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="28" fill="#2563eb">
+    <text x="0" y="0">Markdown</text>
+    <text x="190" y="0">Dark mode</text>
+    <text x="400" y="0">Private login</text>
+  </g>
+</svg>
