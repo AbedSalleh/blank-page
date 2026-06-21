@@ -1,64 +1,69 @@
 # Blank Page
 
-A simple, fast place to write anything — now with multiple notes, Markdown,
-dark mode, search, sharing, and offline support. It autosaves as you type and
-syncs across every device you log in from.
+A simple, fast place to write anything. It autosaves as you type and syncs
+across every device you log in from.
 
-It's a **static site** (HTML/CSS/JS only) that uses
-[Supabase](https://supabase.com) for authentication and cloud storage, so it
-runs for free on **GitHub Pages** while still having real login and cross-device
-sync — notes live in Supabase's database, not just your browser.
+Blank Page is a **static site** (HTML/CSS/JS, no build step) backed by
+[Supabase](https://supabase.com) for authentication and storage. That means it
+runs for free on **GitHub Pages** while still having real accounts and
+cross-device sync — your notes live in a database, not just one browser.
 
 ## Features
 
-- ✍️ **Multiple notes** — create, rename, switch, and delete notes from a sidebar.
-- 🔎 **Search** across all your notes (titles + contents).
-- 💾 **Autosave** as you type, including a save when you close/switch the tab.
+- ✍️ **Multiple notes** — create, rename, switch, and delete from a sidebar.
+- 🔎 **Search** across note titles and contents.
+- 💾 **Autosave** while you type, plus a save when you close or switch the tab.
 - 📊 **Word & character count** and a last-saved time.
-- 🌗 **Dark mode** (remembers your choice, respects your system setting).
+- 🌗 **Dark mode** — remembers your choice, respects your system setting.
 - 👁 **Markdown preview** — write in Markdown, toggle a rendered view.
-- 🔗 **Share links** — make a note public and share a read-only link.
-- 🔑 **Password reset** — "Forgot password?" emails a secure link to set a new one.
-- 📤 **Export** any note as `.md` or `.txt`.
-- 📱 **Installable PWA** — add to your home screen; the app shell works offline
-  and shows your last-synced notes (editing/sync resumes when you're back online).
+- 🔗 **Share links** — mark a note public and share a read-only link.
+- 🔑 **Password reset** — emailed secure link to set a new password.
+- 📤 **Export** a note as `.md` or `.txt`.
+- 📱 **Installable PWA** — add to your home screen; loads offline.
 
-## How data is stored
+## How it works
 
-- **Auth:** Supabase Auth handles email + password (Supabase hashes/stores
-  passwords; this app never sees them).
-- **Storage:** each note is a row in a Supabase Postgres `notes` table. Row Level
-  Security ensures users only read/write their own notes — except notes they
+- **Auth:** Supabase Auth handles email + password. Passwords are hashed and
+  stored by Supabase; this app never sees them.
+- **Storage:** each note is a row in a Postgres `notes` table. Row Level
+  Security restricts every user to their own notes — except notes they
   explicitly mark public, which anyone with the link can read.
+- **Offline:** a service worker caches the app so it loads without a connection
+  and shows your last-synced notes. Editing and syncing need a connection
+  (Supabase is the source of truth); offline edits are **not** queued, so
+  reconnect before relying on a save.
 
 ## Setup
 
 ### 1. Create a Supabase project
-Go to https://supabase.com and create a project (free tier is fine).
+Sign in at [supabase.com](https://supabase.com) and create a project (the free
+tier is plenty).
 
-### 2. Create / update the database table
-In the Supabase dashboard: **SQL Editor → New query**, then:
-- **Fresh install:** paste and run [`schema.sql`](./schema.sql).
-- **Upgrading from the original single-note version:** paste and run
-  [`migration.sql`](./migration.sql) instead (it preserves your existing note).
+### 2. Create the database table
+In the dashboard: **SQL Editor → New query**, then run **[`schema.sql`](./schema.sql)**.
+
+> Upgrading an older single-note install? Run **[`migration.sql`](./migration.sql)**
+> instead — it preserves existing data.
 
 ### 3. Add your project keys
-In **Project Settings → API Keys**, copy your **Project URL** and the
-**publishable** key (older dashboards: the **anon / public** key). Put them in
-[`config.js`](./config.js):
+In **Project Settings → API Keys**, copy the **Project URL** and the
+**publishable** key (older dashboards call it **anon / public**), then put them
+in [`config.js`](./config.js):
+
 ```js
 window.BLANK_PAGE_CONFIG = {
   SUPABASE_URL: "https://YOUR-PROJECT.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_xxx", // or the eyJ... anon key
 };
 ```
+
 This key is **public by design** and safe to commit — access is controlled by
-the Row Level Security policies, not by hiding it. Never use the `secret` /
-`service_role` key here.
+Row Level Security, not by hiding it. Never put the `secret` / `service_role`
+key here.
 
 ### 4. (Optional) Instant sign-up
-By default Supabase may require email confirmation. To let users log in
-immediately, turn it off under **Authentication → Sign In / Providers → Email →
+Supabase may require email confirmation by default. To let users log in
+immediately, disable it under **Authentication → Sign In / Providers → Email →
 Confirm email**.
 
 ## Run locally
@@ -72,33 +77,34 @@ python3 -m http.server 8000
 
 1. Commit `config.js` with your real values.
 2. Repo **Settings → Pages → Build and deployment → Deploy from a branch**.
-3. Choose **`main`** branch, **`/ (root)`** folder, **Save**.
-4. Site publishes at `https://<your-username>.github.io/blank-page/`.
-5. In Supabase: **Authentication → URL Configuration**, set **Site URL** to your
-   Pages URL so login works from that origin. Also add your Pages URL to
-   **Redirect URLs** (e.g. `https://<your-username>.github.io/blank-page/`) so the
-   password-reset link is allowed to return users to the app.
+3. Choose the **`main`** branch and the **`/ (root)`** folder, then **Save**.
+4. The site publishes at `https://<your-username>.github.io/blank-page/`.
+5. In Supabase, go to **Authentication → URL Configuration** and:
+   - set **Site URL** to your Pages URL, and
+   - add the Pages URL to **Redirect URLs** so password-reset links can return
+     users to the app.
 
-## Notes on offline use
+## Project structure
 
-The app shell is cached by a service worker, so the page loads without a
-connection and shows your last-synced notes. Creating, editing, and syncing
-notes still require a connection (Supabase is the source of truth); changes made
-while offline are not queued, so reconnect before relying on a save.
+| File                          | Purpose                                         |
+| ----------------------------- | ----------------------------------------------- |
+| `index.html`                  | Markup for every view (auth, editor, reader).   |
+| `app.js`                      | All app logic (auth, notes, sync, UI).          |
+| `style.css`                   | Styles, theming, responsive/mobile layout.      |
+| `config.js`                   | Your Supabase URL and publishable key.          |
+| `schema.sql` / `migration.sql`| Database table and Row Level Security policies.  |
+| `sw.js`, `manifest.json`, `icon.svg` | PWA: offline cache and install metadata.  |
+| `robots.txt`, `sitemap.xml`, `og-image.svg` | SEO and social-preview assets.    |
 
 ## SEO
 
-The landing page includes SEO essentials: a descriptive `<title>` and meta
-description, canonical URL, Open Graph + Twitter Card tags, JSON-LD
-`WebApplication` structured data, a `<noscript>` fallback, plus `robots.txt` and
-`sitemap.xml`. Because the app UI is rendered by JavaScript, a crawlable
-description is also included in the page body.
+The landing page ships standard SEO: a descriptive title and meta description,
+canonical URL, Open Graph + Twitter Card tags, JSON-LD `WebApplication`
+structured data, a `<noscript>` fallback (the UI is JS-rendered), plus
+`robots.txt` and `sitemap.xml`. After deploying, submit `sitemap.xml` in
+[Google Search Console](https://search.google.com/search-console).
 
-**Social preview image:** `og-image.svg` is the share image. Most social
-platforms (Facebook, LinkedIn, X) don't render SVG, so for rich link previews
-export it to a 1200×630 **PNG** (e.g. `og-image.png`) and update the
-`og:image` / `twitter:image` URLs in `index.html` to point at it.
-
-After deploying, submit `sitemap.xml` in
-[Google Search Console](https://search.google.com/search-console) to speed up
-indexing.
+> **Social preview image:** `og-image.svg` is the share image, but most
+> platforms (Facebook, LinkedIn, X) don't render SVG. For rich link previews,
+> export it to a 1200×630 **PNG** and point `og:image` / `twitter:image` in
+> `index.html` at the PNG.
