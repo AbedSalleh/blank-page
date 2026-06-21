@@ -26,15 +26,18 @@ const recoveryBtn = $("recovery-btn");
 const recoveryMsg = $("recovery-msg");
 
 const sidebar = $("sidebar");
+const backdrop = $("backdrop");
 const noteListEl = $("note-list");
 const searchEl = $("search");
 const newNoteBtn = $("new-note");
+const fabNew = $("fab-new");
 const whoEl = $("who");
 const logoutBtn = $("logout");
 
 const menuToggle = $("menu-toggle");
 const titleEl = $("title");
 const countsEl = $("counts");
+const menuCountsEl = $("menu-counts");
 const statusEl = $("status");
 const pad = $("pad");
 const preview = $("preview");
@@ -402,9 +405,11 @@ let dirty = false;
 function updateCounts() {
   const text = pad.value;
   const words = (text.trim().match(/\S+/g) || []).length;
-  countsEl.textContent = `${words} word${words === 1 ? "" : "s"} · ${text.length} char${
+  const label = `${words} word${words === 1 ? "" : "s"} · ${text.length} char${
     text.length === 1 ? "" : "s"
   }`;
+  countsEl.textContent = label;
+  menuCountsEl.textContent = label; // mobile: count lives in the ⋯ menu
 }
 
 function updatePreview() {
@@ -597,10 +602,52 @@ document.addEventListener("click", (e) => {
   if (!menuPop.contains(e.target) && e.target !== moreBtn) closeMenu();
 });
 
+function openSidebar() {
+  sidebar.classList.add("open");
+  backdrop.classList.remove("hidden");
+}
 function closeSidebarMobile() {
   sidebar.classList.remove("open");
+  backdrop.classList.add("hidden");
 }
-menuToggle.addEventListener("click", () => sidebar.classList.toggle("open"));
+function toggleSidebar() {
+  if (sidebar.classList.contains("open")) closeSidebarMobile();
+  else openSidebar();
+}
+menuToggle.addEventListener("click", toggleSidebar);
+backdrop.addEventListener("click", closeSidebarMobile);
+fabNew.addEventListener("click", () => createNote());
+
+// Edge-swipe to open the drawer, swipe-left on the drawer to close it.
+let touchX = null;
+let touchY = null;
+let touchFromEdge = false;
+document.addEventListener(
+  "touchstart",
+  (e) => {
+    if (appView.classList.contains("hidden")) return;
+    const t = e.changedTouches[0];
+    touchX = t.clientX;
+    touchY = t.clientY;
+    touchFromEdge = t.clientX < 28;
+  },
+  { passive: true }
+);
+document.addEventListener(
+  "touchend",
+  (e) => {
+    if (touchX === null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchX;
+    const dy = t.clientY - touchY;
+    touchX = touchY = null;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > 45) return; // mostly-horizontal only
+    const open = sidebar.classList.contains("open");
+    if (dx > 0 && !open && touchFromEdge) openSidebar();
+    else if (dx < 0 && open) closeSidebarMobile();
+  },
+  { passive: true }
+);
 
 // ---------------------------------------------------------------------------
 // Public reader view (?share=<id>)

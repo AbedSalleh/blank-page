@@ -2,11 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#fbfbf9" />
     <title>Blank Page</title>
     <link rel="manifest" href="./manifest.json" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Blank Page" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
@@ -47,6 +53,7 @@
 
     <!-- App view (sidebar + editor) -->
     <div id="app" class="app hidden">
+      <div id="backdrop" class="backdrop hidden"></div>
       <aside id="sidebar" class="sidebar">
         <div class="sidebar-head">
           <span class="brand">Blank Page</span>
@@ -72,6 +79,7 @@
           <div class="menu">
             <button id="more" class="icon-btn" title="More">⋯</button>
             <div id="menu-pop" class="menu-pop hidden">
+              <div id="menu-counts" class="menu-info"></div>
               <button id="share-btn">Share…</button>
               <button id="export-md">Export as .md</button>
               <button id="export-txt">Export as .txt</button>
@@ -96,6 +104,8 @@
             spellcheck="true"></textarea>
           <div id="preview" class="preview hidden"></div>
         </div>
+
+        <button id="fab-new" class="fab" title="New note" aria-label="New note">+</button>
       </main>
     </div>
 
