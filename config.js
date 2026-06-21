@@ -10,6 +10,6 @@
 // by Row Level Security policies in the database (see schema.sql), not by
 // keeping this key secret. Do NOT put the "service_role" key here.
 window.BLANK_PAGE_CONFIG = {
-  SUPABASE_URL: "YOUR_SUPABASE_URL",
-  SUPABASE_ANON_KEY: "YOUR_SUPABASE_ANON_KEY",
+  SUPABASE_URL: "https://udwwhbgoyupkxqjzpbwn.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_zxnY-wptz5C61I43UKdrAA_gRiCDFon",
 };
