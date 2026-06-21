@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#fbfbf9" />
     <title>Blank Page</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
@@ -12,22 +15,10 @@
       <form id="auth-form" class="card">
         <h1>Blank Page</h1>
         <p class="subtitle">Log in to write from any device.</p>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          placeholder="Email"
-          autocomplete="email"
-          required
-        />
-        <input
-          id="password"
-          name="password"
-          type="password"
-          placeholder="Password"
-          autocomplete="current-password"
-          required
-        />
+        <input id="email" name="email" type="email" placeholder="Email"
+          autocomplete="email" required />
+        <input id="password" name="password" type="password" placeholder="Password"
+          autocomplete="current-password" required />
         <button id="primary-btn" type="submit">Log in</button>
         <p id="auth-msg" class="msg"></p>
         <p class="toggle">
@@ -37,16 +28,69 @@
       </form>
     </main>
 
-    <!-- Editor view -->
-    <div id="editor" class="editor hidden">
-      <header class="bar">
-        <span class="brand">Blank Page</span>
-        <span id="status" class="status">Saved</span>
-        <span class="spacer"></span>
-        <span id="who" class="who"></span>
-        <button id="logout" class="link-btn">Log out</button>
-      </header>
-      <textarea id="pad" placeholder="Start writing…" spellcheck="true"></textarea>
+    <!-- App view (sidebar + editor) -->
+    <div id="app" class="app hidden">
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-head">
+          <span class="brand">Blank Page</span>
+          <button id="new-note" class="primary-sm" title="New note">+ New</button>
+        </div>
+        <input id="search" class="search" type="search" placeholder="Search notes…" />
+        <ul id="note-list" class="note-list"></ul>
+        <div class="sidebar-foot">
+          <span id="who" class="who"></span>
+          <button id="logout" class="link-btn">Log out</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button id="menu-toggle" class="icon-btn" title="Notes">☰</button>
+          <input id="title" class="title-input" placeholder="Untitled" />
+          <span class="spacer"></span>
+          <span id="counts" class="counts"></span>
+          <span id="status" class="status">Saved</span>
+          <button id="toggle-preview" class="icon-btn" title="Toggle preview">👁</button>
+          <button id="toggle-theme" class="icon-btn" title="Toggle dark mode">🌙</button>
+          <div class="menu">
+            <button id="more" class="icon-btn" title="More">⋯</button>
+            <div id="menu-pop" class="menu-pop hidden">
+              <button id="share-btn">Share…</button>
+              <button id="export-md">Export as .md</button>
+              <button id="export-txt">Export as .txt</button>
+              <button id="delete-btn" class="danger">Delete note</button>
+            </div>
+          </div>
+        </header>
+
+        <div id="share-panel" class="share-panel hidden">
+          <label class="share-row">
+            <input type="checkbox" id="share-toggle" />
+            Anyone with the link can read this note
+          </label>
+          <div id="share-link-row" class="share-link-row hidden">
+            <input id="share-link" class="share-link" readonly />
+            <button id="copy-link" class="primary-sm">Copy</button>
+          </div>
+        </div>
+
+        <div class="editor-wrap">
+          <textarea id="pad" placeholder="Start writing…  (Markdown supported)"
+            spellcheck="true"></textarea>
+          <div id="preview" class="preview hidden"></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Public read-only share view -->
+    <div id="reader" class="reader hidden">
+      <article class="reader-doc">
+        <h1 id="reader-title"></h1>
+        <div id="reader-body"></div>
+      </article>
+      <footer class="reader-foot">
+        <a href="./">Made with Blank Page — start your own →</a>
+      </footer>
     </div>
 
     <!-- Config error banner -->
@@ -54,14 +98,15 @@
       <div class="card">
         <h1>Setup needed</h1>
         <p>
-          Edit <code>config.js</code> and add your Supabase project URL and anon
-          key. See the <code>README.md</code> for setup steps.
+          Edit <code>config.js</code> and add your Supabase project URL and
+          publishable key. See <code>README.md</code> for setup steps.
         </p>
       </div>
     </div>
 
-    <!-- Supabase JS client (v2) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="./config.js"></script>
     <script src="./app.js"></script>
   </body>
