@@ -25,6 +25,23 @@
           <span id="toggle-text">Don't have an account?</span>
           <a id="toggle-link" href="#">Sign up</a>
         </p>
+        <p class="toggle">
+          <a id="forgot-link" href="#">Forgot password?</a>
+        </p>
+      </form>
+    </main>
+
+    <!-- Set-new-password view (after clicking the reset email link) -->
+    <main id="recovery" class="auth hidden">
+      <form id="recovery-form" class="card">
+        <h1>Set a new password</h1>
+        <p class="subtitle">Enter a new password for your account.</p>
+        <input id="new-password" type="password" placeholder="New password"
+          autocomplete="new-password" required />
+        <input id="new-password2" type="password" placeholder="Confirm new password"
+          autocomplete="new-password" required />
+        <button id="recovery-btn" type="submit">Update password</button>
+        <p id="recovery-msg" class="msg"></p>
       </form>
     </main>
 

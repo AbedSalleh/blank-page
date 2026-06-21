@@ -16,6 +16,14 @@ const primaryBtn = $("primary-btn");
 const msgEl = $("auth-msg");
 const toggleText = $("toggle-text");
 const toggleLink = $("toggle-link");
+const forgotLink = $("forgot-link");
+
+const recoveryView = $("recovery");
+const recoveryForm = $("recovery-form");
+const newPasswordEl = $("new-password");
+const newPassword2El = $("new-password2");
+const recoveryBtn = $("recovery-btn");
+const recoveryMsg = $("recovery-msg");
 
 const sidebar = $("sidebar");
 const noteListEl = $("note-list");
@@ -62,12 +70,13 @@ let notes = [];
 let activeId = null;
 let mode = "login";
 let previewOn = false;
+let recovering = false;
 
 // ---------------------------------------------------------------------------
 // View helpers
 // ---------------------------------------------------------------------------
 function showView(view) {
-  [authView, appView, readerView, configError].forEach((v) =>
+  [authView, appView, readerView, configError, recoveryView].forEach((v) =>
     v.classList.add("hidden")
   );
   view.classList.remove("hidden");
@@ -77,16 +86,25 @@ function setMode(next) {
   mode = next;
   msgEl.textContent = "";
   msgEl.className = "msg";
+  // The password field and "forgot" link are hidden in the reset-request mode.
+  passwordEl.classList.toggle("hidden", mode === "forgot");
+  passwordEl.required = mode !== "forgot";
+  forgotLink.parentElement.classList.toggle("hidden", mode !== "login");
   if (mode === "login") {
     primaryBtn.textContent = "Log in";
     toggleText.textContent = "Don't have an account?";
     toggleLink.textContent = "Sign up";
     passwordEl.autocomplete = "current-password";
-  } else {
+  } else if (mode === "signup") {
     primaryBtn.textContent = "Sign up";
     toggleText.textContent = "Already have an account?";
     toggleLink.textContent = "Log in";
     passwordEl.autocomplete = "new-password";
+  } else {
+    // forgot
+    primaryBtn.textContent = "Send reset link";
+    toggleText.textContent = "Remembered it?";
+    toggleLink.textContent = "Back to log in";
   }
 }
 
@@ -130,7 +148,14 @@ toggleThemeBtn.addEventListener("click", () => {
 // ---------------------------------------------------------------------------
 toggleLink.addEventListener("click", (e) => {
   e.preventDefault();
+  // From any mode, this link returns to login; from login it goes to signup.
   setMode(mode === "login" ? "signup" : "login");
+});
+
+forgotLink.addEventListener("click", (e) => {
+  e.preventDefault();
+  setMode("forgot");
+  emailEl.focus();
 });
 
 form.addEventListener("submit", async (e) => {
@@ -140,6 +165,16 @@ form.addEventListener("submit", async (e) => {
   const password = passwordEl.value;
   primaryBtn.disabled = true;
   try {
+    if (mode === "forgot") {
+      // The link in the email returns the user here in PASSWORD_RECOVERY mode.
+      const redirectTo = location.origin + location.pathname;
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+      if (error) return setMsg(error.message);
+      setMsg("If that email has an account, a reset link is on its way.", "ok");
+      return;
+    }
     if (mode === "signup") {
       const { data, error } = await client.auth.signUp({ email, password });
       if (error) return setMsg(error.message);
@@ -155,6 +190,41 @@ form.addEventListener("submit", async (e) => {
     passwordEl.value = "";
   } finally {
     primaryBtn.disabled = false;
+  }
+});
+
+// Set-new-password form (shown after clicking the reset email link).
+recoveryForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  recoveryMsg.textContent = "";
+  recoveryMsg.className = "msg";
+  const pw = newPasswordEl.value;
+  const pw2 = newPassword2El.value;
+  if (pw.length < 6) {
+    recoveryMsg.textContent = "Password must be at least 6 characters.";
+    recoveryMsg.className = "msg error";
+    return;
+  }
+  if (pw !== pw2) {
+    recoveryMsg.textContent = "Passwords don't match.";
+    recoveryMsg.className = "msg error";
+    return;
+  }
+  recoveryBtn.disabled = true;
+  try {
+    const { data, error } = await client.auth.updateUser({ password: pw });
+    if (error) {
+      recoveryMsg.textContent = error.message;
+      recoveryMsg.className = "msg error";
+      return;
+    }
+    recovering = false;
+    newPasswordEl.value = "";
+    newPassword2El.value = "";
+    history.replaceState(null, "", location.pathname);
+    if (data && data.user) enterApp(data.user);
+  } finally {
+    recoveryBtn.disabled = false;
   }
 });
 
@@ -575,6 +645,14 @@ function enterAuth() {
   emailEl.focus();
 }
 
+function showRecovery() {
+  recovering = true;
+  recoveryMsg.textContent = "";
+  recoveryMsg.className = "msg";
+  showView(recoveryView);
+  newPasswordEl.focus();
+}
+
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
@@ -598,11 +676,21 @@ function registerServiceWorker() {
     return;
   }
 
-  client.auth.onAuthStateChange((_event, session) => {
+  // A reset-email link returns here with type=recovery in the URL. Show the
+  // set-password form right away so we never flash the editor in between.
+  if (/type=recovery/.test(location.hash) || /type=recovery/.test(location.search)) {
+    showRecovery();
+  }
+
+  client.auth.onAuthStateChange((event, session) => {
+    // User clicked the reset link: let them set a new password before entering.
+    if (event === "PASSWORD_RECOVERY") {
+      showRecovery();
+      return;
+    }
+    if (recovering) return; // stay on the set-password form until it's submitted
     if (session && session.user) {
       enterApp(session.user);
-    } else if (currentUser) {
-      enterAuth();
     } else {
       enterAuth();
     }

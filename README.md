@@ -18,6 +18,7 @@ sync — notes live in Supabase's database, not just your browser.
 - 🌗 **Dark mode** (remembers your choice, respects your system setting).
 - 👁 **Markdown preview** — write in Markdown, toggle a rendered view.
 - 🔗 **Share links** — make a note public and share a read-only link.
+- 🔑 **Password reset** — "Forgot password?" emails a secure link to set a new one.
 - 📤 **Export** any note as `.md` or `.txt`.
 - 📱 **Installable PWA** — add to your home screen; the app shell works offline
   and shows your last-synced notes (editing/sync resumes when you're back online).
@@ -74,7 +75,9 @@ python3 -m http.server 8000
 3. Choose **`main`** branch, **`/ (root)`** folder, **Save**.
 4. Site publishes at `https://<your-username>.github.io/blank-page/`.
 5. In Supabase: **Authentication → URL Configuration**, set **Site URL** to your
-   Pages URL so login works from that origin.
+   Pages URL so login works from that origin. Also add your Pages URL to
+   **Redirect URLs** (e.g. `https://<your-username>.github.io/blank-page/`) so the
+   password-reset link is allowed to return users to the app.
 
 ## Notes on offline use
 
