@@ -1,18 +1,53 @@
-const authView = document.getElementById("auth");
-const editorView = document.getElementById("editor");
-const configError = document.getElementById("config-error");
-const form = document.getElementById("auth-form");
-const emailEl = document.getElementById("email");
-const passwordEl = document.getElementById("password");
-const primaryBtn = document.getElementById("primary-btn");
-const msgEl = document.getElementById("auth-msg");
-const toggleText = document.getElementById("toggle-text");
-const toggleLink = document.getElementById("toggle-link");
-const pad = document.getElementById("pad");
-const statusEl = document.getElementById("status");
-const whoEl = document.getElementById("who");
-const logoutBtn = document.getElementById("logout");
+"use strict";
 
+// ---------------------------------------------------------------------------
+// Element refs
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const authView = $("auth");
+const appView = $("app");
+const readerView = $("reader");
+const configError = $("config-error");
+
+const form = $("auth-form");
+const emailEl = $("email");
+const passwordEl = $("password");
+const primaryBtn = $("primary-btn");
+const msgEl = $("auth-msg");
+const toggleText = $("toggle-text");
+const toggleLink = $("toggle-link");
+
+const sidebar = $("sidebar");
+const noteListEl = $("note-list");
+const searchEl = $("search");
+const newNoteBtn = $("new-note");
+const whoEl = $("who");
+const logoutBtn = $("logout");
+
+const menuToggle = $("menu-toggle");
+const titleEl = $("title");
+const countsEl = $("counts");
+const statusEl = $("status");
+const pad = $("pad");
+const preview = $("preview");
+const togglePreviewBtn = $("toggle-preview");
+const toggleThemeBtn = $("toggle-theme");
+const moreBtn = $("more");
+const menuPop = $("menu-pop");
+const shareBtn = $("share-btn");
+const exportMdBtn = $("export-md");
+const exportTxtBtn = $("export-txt");
+const deleteBtn = $("delete-btn");
+
+const sharePanel = $("share-panel");
+const shareToggle = $("share-toggle");
+const shareLinkRow = $("share-link-row");
+const shareLinkEl = $("share-link");
+const copyLinkBtn = $("copy-link");
+
+// ---------------------------------------------------------------------------
+// Config / state
+// ---------------------------------------------------------------------------
 const cfg = window.BLANK_PAGE_CONFIG || {};
 const configured =
   cfg.SUPABASE_URL &&
@@ -20,14 +55,21 @@ const configured =
   cfg.SUPABASE_URL !== "YOUR_SUPABASE_URL" &&
   cfg.SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY";
 
-let mode = "login"; // or "signup"
+const CACHE_KEY = "blankpage.notes.cache";
 let client = null;
 let currentUser = null;
+let notes = [];
+let activeId = null;
+let mode = "login";
+let previewOn = false;
 
+// ---------------------------------------------------------------------------
+// View helpers
+// ---------------------------------------------------------------------------
 function showView(view) {
-  authView.classList.add("hidden");
-  editorView.classList.add("hidden");
-  configError.classList.add("hidden");
+  [authView, appView, readerView, configError].forEach((v) =>
+    v.classList.add("hidden")
+  );
   view.classList.remove("hidden");
 }
 
@@ -53,6 +95,39 @@ function setMsg(text, kind = "error") {
   msgEl.className = "msg " + kind;
 }
 
+function renderMarkdown(text) {
+  const raw = window.marked.parse(text || "", { breaks: true });
+  return window.DOMPurify.sanitize(raw);
+}
+
+// ---------------------------------------------------------------------------
+// Theme
+// ---------------------------------------------------------------------------
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  toggleThemeBtn.textContent = theme === "dark" ? "☀️" : "🌙";
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = theme === "dark" ? "#1a1a1a" : "#fbfbf9";
+}
+
+function initTheme() {
+  const stored = localStorage.getItem("blankpage.theme");
+  const prefersDark =
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applyTheme(stored || (prefersDark ? "dark" : "light"));
+}
+
+toggleThemeBtn.addEventListener("click", () => {
+  const next =
+    document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  localStorage.setItem("blankpage.theme", next);
+  applyTheme(next);
+});
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
 toggleLink.addEventListener("click", (e) => {
   e.preventDefault();
   setMode(mode === "login" ? "signup" : "login");
@@ -69,17 +144,12 @@ form.addEventListener("submit", async (e) => {
       const { data, error } = await client.auth.signUp({ email, password });
       if (error) return setMsg(error.message);
       if (!data.session) {
-        // Email confirmation is enabled on the project.
         setMsg("Account created. Check your email to confirm, then log in.", "ok");
         setMode("login");
         return;
       }
-      // Session present → logged in immediately.
     } else {
-      const { error } = await client.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await client.auth.signInWithPassword({ email, password });
       if (error) return setMsg(error.message);
     }
     passwordEl.value = "";
@@ -89,83 +159,450 @@ form.addEventListener("submit", async (e) => {
 });
 
 logoutBtn.addEventListener("click", async () => {
+  await flush();
   await client.auth.signOut();
 });
 
-// --- Note loading / autosave ---
-async function loadNote() {
+// ---------------------------------------------------------------------------
+// Notes: load / render / select
+// ---------------------------------------------------------------------------
+function cacheNotes() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(notes));
+  } catch (_) {
+    /* storage full / disabled — ignore */
+  }
+}
+
+function loadCachedNotes() {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY)) || [];
+  } catch (_) {
+    return [];
+  }
+}
+
+async function loadNotes() {
   const { data, error } = await client
     .from("notes")
-    .select("content")
-    .eq("user_id", currentUser.id)
-    .maybeSingle();
+    .select("id, title, content, is_public, updated_at")
+    .order("updated_at", { ascending: false });
+
   if (error) {
-    statusEl.textContent = "Load failed";
+    // Offline / network error → fall back to cached copy (read-only-ish).
+    notes = loadCachedNotes();
+    statusEl.textContent = "Offline";
+  } else {
+    notes = data || [];
+    cacheNotes();
+  }
+
+  if (notes.length === 0) {
+    await createNote();
+  } else {
+    renderList();
+    openNote(notes[0].id);
+  }
+}
+
+function activeNote() {
+  return notes.find((n) => n.id === activeId) || null;
+}
+
+function noteTitle(n) {
+  if (n.title && n.title.trim()) return n.title;
+  const firstLine = (n.content || "").split("\n")[0].trim();
+  return firstLine || "Untitled";
+}
+
+function renderList() {
+  const q = searchEl.value.trim().toLowerCase();
+  const items = notes.filter((n) => {
+    if (!q) return true;
+    return (
+      noteTitle(n).toLowerCase().includes(q) ||
+      (n.content || "").toLowerCase().includes(q)
+    );
+  });
+
+  noteListEl.innerHTML = "";
+  if (items.length === 0) {
+    const li = document.createElement("li");
+    li.className = "note-empty";
+    li.textContent = q ? "No matches" : "No notes yet";
+    noteListEl.appendChild(li);
     return;
   }
-  pad.value = (data && data.content) || "";
-  statusEl.textContent = "Saved";
+
+  for (const n of items) {
+    const li = document.createElement("li");
+    li.className = "note-item" + (n.id === activeId ? " active" : "");
+    li.tabIndex = 0;
+    const t = document.createElement("div");
+    t.className = "note-title";
+    t.textContent = noteTitle(n);
+    const sub = document.createElement("div");
+    sub.className = "note-sub";
+    const snippet = (n.content || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    sub.textContent = snippet || "Empty";
+    if (n.is_public) {
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent = "shared";
+      t.appendChild(badge);
+    }
+    li.appendChild(t);
+    li.appendChild(sub);
+    li.addEventListener("click", () => {
+      openNote(n.id);
+      closeSidebarMobile();
+    });
+    li.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") openNote(n.id);
+    });
+    noteListEl.appendChild(li);
+  }
 }
 
+function openNote(id) {
+  if (activeId && activeId !== id) flush();
+  activeId = id;
+  const n = activeNote();
+  if (!n) return;
+  titleEl.value = n.title || "";
+  pad.value = n.content || "";
+  updateCounts();
+  updatePreview();
+  updateShareUI();
+  statusEl.textContent = "Saved";
+  renderList();
+}
+
+async function createNote() {
+  const draft = {
+    user_id: currentUser.id,
+    title: "Untitled",
+    content: "",
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await client
+    .from("notes")
+    .insert(draft)
+    .select("id, title, content, is_public, updated_at")
+    .single();
+  if (error) {
+    setStatusError();
+    return;
+  }
+  notes.unshift(data);
+  cacheNotes();
+  renderList();
+  openNote(data.id);
+  titleEl.focus();
+}
+
+newNoteBtn.addEventListener("click", () => {
+  createNote();
+  closeSidebarMobile();
+});
+
+deleteBtn.addEventListener("click", async () => {
+  const n = activeNote();
+  if (!n) return;
+  if (!confirm(`Delete "${noteTitle(n)}"? This can't be undone.`)) return;
+  closeMenu();
+  const { error } = await client.from("notes").delete().eq("id", n.id);
+  if (error) return setStatusError();
+  notes = notes.filter((x) => x.id !== n.id);
+  cacheNotes();
+  if (notes.length === 0) {
+    await createNote();
+  } else {
+    openNote(notes[0].id);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Editing + autosave
+// ---------------------------------------------------------------------------
 let saveTimer = null;
 let saving = false;
+let dirty = false;
 
-function scheduleSave() {
-  statusEl.textContent = "Editing…";
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveNote, 700);
+function updateCounts() {
+  const text = pad.value;
+  const words = (text.trim().match(/\S+/g) || []).length;
+  countsEl.textContent = `${words} word${words === 1 ? "" : "s"} · ${text.length} char${
+    text.length === 1 ? "" : "s"
+  }`;
 }
 
-async function saveNote() {
-  if (!currentUser) return;
+function updatePreview() {
+  if (previewOn) preview.innerHTML = renderMarkdown(pad.value);
+}
+
+function setStatusError() {
+  statusEl.textContent = "Save failed";
+}
+
+function formatSavedTime(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  return "Saved " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function onEdit() {
+  const n = activeNote();
+  if (!n) return;
+  n.title = titleEl.value;
+  n.content = pad.value;
+  dirty = true;
+  updateCounts();
+  updatePreview();
+  statusEl.textContent = "Editing…";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 700);
+}
+
+async function save() {
+  const n = activeNote();
+  if (!n || !dirty) return;
   if (saving) {
-    scheduleSave();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 500);
     return;
   }
   saving = true;
   statusEl.textContent = "Saving…";
-  const { error } = await client.from("notes").upsert(
-    {
-      user_id: currentUser.id,
-      content: pad.value,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  );
+  const now = new Date().toISOString();
+  const { error } = await client
+    .from("notes")
+    .update({ title: n.title, content: n.content, updated_at: now })
+    .eq("id", n.id);
   saving = false;
-  statusEl.textContent = error ? "Save failed" : "Saved";
+  if (error) {
+    setStatusError();
+    return;
+  }
+  n.updated_at = now;
+  dirty = false;
+  cacheNotes();
+  statusEl.textContent = formatSavedTime(now);
+  // Reflect title/snippet changes in the sidebar.
+  const sub = document.querySelector(".note-item.active .note-sub");
+  const title = document.querySelector(".note-item.active .note-title");
+  if (title) title.childNodes[0] && (title.childNodes[0].textContent = noteTitle(n));
+  if (sub) sub.textContent = (n.content || "").replace(/\s+/g, " ").trim().slice(0, 60) || "Empty";
 }
 
-pad.addEventListener("input", scheduleSave);
+// Flush pending edits immediately (used on logout / tab hide / unload).
+async function flush() {
+  clearTimeout(saveTimer);
+  if (dirty) await save();
+}
 
-// --- Boot ---
-function enterEditor(user) {
+pad.addEventListener("input", onEdit);
+titleEl.addEventListener("input", onEdit);
+
+// Save when the tab is hidden (covers mobile app-switching & most closes).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") flush();
+});
+window.addEventListener("pagehide", flush);
+window.addEventListener("beforeunload", (e) => {
+  if (dirty) {
+    flush();
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------
+searchEl.addEventListener("input", renderList);
+
+// ---------------------------------------------------------------------------
+// Preview toggle
+// ---------------------------------------------------------------------------
+togglePreviewBtn.addEventListener("click", () => {
+  previewOn = !previewOn;
+  preview.classList.toggle("hidden", !previewOn);
+  pad.classList.toggle("split", previewOn);
+  togglePreviewBtn.classList.toggle("on", previewOn);
+  updatePreview();
+});
+
+// ---------------------------------------------------------------------------
+// Export
+// ---------------------------------------------------------------------------
+function download(filename, text) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function safeName(n, ext) {
+  const base = (noteTitle(n) || "note").replace(/[^\w\- ]+/g, "").trim() || "note";
+  return base.slice(0, 50) + ext;
+}
+
+exportMdBtn.addEventListener("click", () => {
+  const n = activeNote();
+  if (n) download(safeName(n, ".md"), n.content || "");
+  closeMenu();
+});
+exportTxtBtn.addEventListener("click", () => {
+  const n = activeNote();
+  if (n) download(safeName(n, ".txt"), n.content || "");
+  closeMenu();
+});
+
+// ---------------------------------------------------------------------------
+// Share (public links)
+// ---------------------------------------------------------------------------
+function shareUrl(id) {
+  return `${location.origin}${location.pathname}?share=${id}`;
+}
+
+function updateShareUI() {
+  const n = activeNote();
+  const isPublic = !!(n && n.is_public);
+  shareToggle.checked = isPublic;
+  shareLinkRow.classList.toggle("hidden", !isPublic);
+  if (isPublic && n) shareLinkEl.value = shareUrl(n.id);
+}
+
+shareBtn.addEventListener("click", () => {
+  closeMenu();
+  sharePanel.classList.toggle("hidden");
+  updateShareUI();
+});
+
+shareToggle.addEventListener("change", async () => {
+  const n = activeNote();
+  if (!n) return;
+  const makePublic = shareToggle.checked;
+  const { error } = await client
+    .from("notes")
+    .update({ is_public: makePublic })
+    .eq("id", n.id);
+  if (error) {
+    shareToggle.checked = !makePublic;
+    return setStatusError();
+  }
+  n.is_public = makePublic;
+  cacheNotes();
+  updateShareUI();
+  renderList();
+});
+
+copyLinkBtn.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(shareLinkEl.value);
+    copyLinkBtn.textContent = "Copied!";
+    setTimeout(() => (copyLinkBtn.textContent = "Copy"), 1500);
+  } catch (_) {
+    shareLinkEl.select();
+    document.execCommand("copy");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Menu / sidebar UI
+// ---------------------------------------------------------------------------
+function closeMenu() {
+  menuPop.classList.add("hidden");
+}
+moreBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  menuPop.classList.toggle("hidden");
+});
+document.addEventListener("click", (e) => {
+  if (!menuPop.contains(e.target) && e.target !== moreBtn) closeMenu();
+});
+
+function closeSidebarMobile() {
+  sidebar.classList.remove("open");
+}
+menuToggle.addEventListener("click", () => sidebar.classList.toggle("open"));
+
+// ---------------------------------------------------------------------------
+// Public reader view (?share=<id>)
+// ---------------------------------------------------------------------------
+async function showReader(id) {
+  showView(readerView);
+  const { data, error } = await client
+    .from("notes")
+    .select("title, content, is_public")
+    .eq("id", id)
+    .maybeSingle();
+  const titleNode = $("reader-title");
+  const bodyNode = $("reader-body");
+  if (error || !data || !data.is_public) {
+    titleNode.textContent = "Not found";
+    bodyNode.innerHTML =
+      "<p>This note doesn't exist or is no longer shared.</p>";
+    return;
+  }
+  document.title = (data.title || "Shared note") + " — Blank Page";
+  titleNode.textContent = data.title || "Untitled";
+  bodyNode.innerHTML = renderMarkdown(data.content);
+}
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+function enterApp(user) {
+  if (currentUser) return; // already in
   currentUser = user;
   whoEl.textContent = user.email;
-  showView(editorView);
-  loadNote();
-  pad.focus();
+  showView(appView);
+  loadNotes();
 }
 
 function enterAuth() {
   currentUser = null;
-  pad.value = "";
+  notes = [];
+  activeId = null;
   setMode("login");
   showView(authView);
   emailEl.focus();
 }
 
+function registerServiceWorker() {
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    });
+  }
+}
+
 (function init() {
+  initTheme();
   if (!configured) {
     showView(configError);
     return;
   }
   client = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  registerServiceWorker();
 
-  // Drives all view switching: fires on initial load, login, and logout.
+  const shareId = new URLSearchParams(location.search).get("share");
+  if (shareId) {
+    showReader(shareId);
+    return;
+  }
+
   client.auth.onAuthStateChange((_event, session) => {
     if (session && session.user) {
-      if (!currentUser) enterEditor(session.user);
+      enterApp(session.user);
+    } else if (currentUser) {
+      enterAuth();
     } else {
       enterAuth();
     }

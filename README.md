@@ -1,77 +1,84 @@
 # Blank Page
 
-A dead-simple blank-slate page where you can write anything. It autosaves as you
-type and is protected by an email/password login, so you can pick up your
-writing from any device.
+A simple, fast place to write anything — now with multiple notes, Markdown,
+dark mode, search, sharing, and offline support. It autosaves as you type and
+syncs across every device you log in from.
 
-This is a **static site** (HTML/CSS/JS only) that uses
-[Supabase](https://supabase.com) for authentication and cloud storage. That
-means it can be hosted for free on **GitHub Pages** while still having real
-login and cross-device sync — the notes live in Supabase's database, not in your
-browser.
+It's a **static site** (HTML/CSS/JS only) that uses
+[Supabase](https://supabase.com) for authentication and cloud storage, so it
+runs for free on **GitHub Pages** while still having real login and cross-device
+sync — notes live in Supabase's database, not just your browser.
 
-## How it works / where data is stored
+## Features
 
-- **Auth:** Supabase Auth handles email + password login (passwords are hashed
-  and stored by Supabase, never by this page).
-- **Storage:** Each user has one row in a `notes` table in your Supabase
-  Postgres database. Row Level Security ensures a user can only read/write their
-  own note.
-- **Cross-device:** Because the data lives in Supabase, logging in on any device
-  shows the same content.
+- ✍️ **Multiple notes** — create, rename, switch, and delete notes from a sidebar.
+- 🔎 **Search** across all your notes (titles + contents).
+- 💾 **Autosave** as you type, including a save when you close/switch the tab.
+- 📊 **Word & character count** and a last-saved time.
+- 🌗 **Dark mode** (remembers your choice, respects your system setting).
+- 👁 **Markdown preview** — write in Markdown, toggle a rendered view.
+- 🔗 **Share links** — make a note public and share a read-only link.
+- 📤 **Export** any note as `.md` or `.txt`.
+- 📱 **Installable PWA** — add to your home screen; the app shell works offline
+  and shows your last-synced notes (editing/sync resumes when you're back online).
+
+## How data is stored
+
+- **Auth:** Supabase Auth handles email + password (Supabase hashes/stores
+  passwords; this app never sees them).
+- **Storage:** each note is a row in a Supabase Postgres `notes` table. Row Level
+  Security ensures users only read/write their own notes — except notes they
+  explicitly mark public, which anyone with the link can read.
 
 ## Setup
 
 ### 1. Create a Supabase project
-- Go to https://supabase.com, sign in, and create a new project (free tier is
-  fine). Wait for it to finish provisioning.
+Go to https://supabase.com and create a project (free tier is fine).
 
-### 2. Create the database table
-- In the Supabase dashboard: **SQL Editor → New query**, paste the contents of
-  [`schema.sql`](./schema.sql), and click **Run**.
+### 2. Create / update the database table
+In the Supabase dashboard: **SQL Editor → New query**, then:
+- **Fresh install:** paste and run [`schema.sql`](./schema.sql).
+- **Upgrading from the original single-note version:** paste and run
+  [`migration.sql`](./migration.sql) instead (it preserves your existing note).
 
 ### 3. Add your project keys
-- In the dashboard: **Project Settings → API**. Copy the **Project URL** and the
-  **anon / public** key.
-- Open [`config.js`](./config.js) and paste them in:
-  ```js
-  window.BLANK_PAGE_CONFIG = {
-    SUPABASE_URL: "https://YOUR-PROJECT.supabase.co",
-    SUPABASE_ANON_KEY: "your-anon-public-key",
-  };
-  ```
-- The anon key is **public by design** — it is safe to commit and ship in the
-  browser. Access is controlled by the Row Level Security policies in
-  `schema.sql`, not by hiding this key. **Never** put the `service_role` key
-  here.
+In **Project Settings → API Keys**, copy your **Project URL** and the
+**publishable** key (older dashboards: the **anon / public** key). Put them in
+[`config.js`](./config.js):
+```js
+window.BLANK_PAGE_CONFIG = {
+  SUPABASE_URL: "https://YOUR-PROJECT.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_xxx", // or the eyJ... anon key
+};
+```
+This key is **public by design** and safe to commit — access is controlled by
+the Row Level Security policies, not by hiding it. Never use the `secret` /
+`service_role` key here.
 
-### 4. (Optional) Email confirmation
-- By default Supabase may require email confirmation on sign-up. If so, new
-  users must click the link in their email before logging in. To allow instant
-  login, disable it under **Authentication → Providers → Email → Confirm email**.
+### 4. (Optional) Instant sign-up
+By default Supabase may require email confirmation. To let users log in
+immediately, turn it off under **Authentication → Sign In / Providers → Email →
+Confirm email**.
 
 ## Run locally
 
-It's just static files, so any static server works:
-
 ```bash
 python3 -m http.server 8000
-# then open http://localhost:8000
+# open http://localhost:8000
 ```
 
 ## Deploy to GitHub Pages
 
-1. Make sure `config.js` has your real Supabase URL and anon key committed.
-2. In the repo: **Settings → Pages**.
-3. Under **Build and deployment → Source**, choose **Deploy from a branch**.
-4. Select the **`main`** branch and the **`/ (root)`** folder, then **Save**.
-5. Wait a minute; your site will be published at
-   `https://<your-username>.github.io/blank-page/`.
+1. Commit `config.js` with your real values.
+2. Repo **Settings → Pages → Build and deployment → Deploy from a branch**.
+3. Choose **`main`** branch, **`/ (root)`** folder, **Save**.
+4. Site publishes at `https://<your-username>.github.io/blank-page/`.
+5. In Supabase: **Authentication → URL Configuration**, set **Site URL** to your
+   Pages URL so login works from that origin.
 
-### Important: allow your Pages URL in Supabase
-- In Supabase: **Authentication → URL Configuration**, add your GitHub Pages URL
-  (e.g. `https://<your-username>.github.io`) to the **Site URL** / **Redirect
-  URLs** so auth works from that origin.
+## Notes on offline use
 
-That's it — open the Pages URL, sign up, and your writing syncs across every
-device you log in from.
+The app shell is cached by a service worker, so the page loads without a
+connection and shows your last-synced notes. Creating, editing, and syncing
+notes still require a connection (Supabase is the source of truth); changes made
+while offline are not queued, so reconnect before relying on a save.
