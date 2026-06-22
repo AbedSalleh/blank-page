@@ -41,6 +41,7 @@ const menuCountsEl = $("menu-counts");
 const statusEl = $("status");
 const editorHost = $("editor");
 const pad = $("pad"); // textarea fallback if the rich editor fails
+const toggleModeBtn = $("toggle-mode");
 const toggleThemeBtn = $("toggle-theme");
 const moreBtn = $("more");
 const menuPop = $("menu-pop");
@@ -280,6 +281,26 @@ function applyEditorTheme() {
   const root = editorHost.querySelector(".toastui-editor-defaultUI");
   if (root) root.classList.toggle("toastui-editor-dark", dark);
 }
+
+// Explicit Markdown ⇄ formatted (WYSIWYG) toggle in the toolbar.
+let wysiwyg = false;
+function updateModeButton() {
+  toggleModeBtn.textContent = wysiwyg ? "Markdown" : "Formatted";
+}
+toggleModeBtn.addEventListener("click", () => {
+  if (!editorReady) return;
+  if (usingFallback || !editor) {
+    alert(
+      "The formatted (WYSIWYG) editor didn't load in this browser, so you're " +
+        "using the plain Markdown text box. Check the console for an 'Editor " +
+        "fallback' message."
+    );
+    return;
+  }
+  wysiwyg = !wysiwyg;
+  editor.changeMode(wysiwyg ? "wysiwyg" : "markdown", true);
+  updateModeButton();
+});
 
 // ---------------------------------------------------------------------------
 // Theme
