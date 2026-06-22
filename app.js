@@ -918,9 +918,33 @@ function tokenizeForm(content) {
 
     // Markdown table: a row followed by a |---|---| separator.
     if (isRow(line) && i + 1 < lines.length && isSep(lines[i + 1])) {
-      const rows = [splitRow(line)];
+      const raw = [splitRow(line)];
       i += 2;
-      while (i < lines.length && isRow(lines[i])) { rows.push(splitRow(lines[i])); i++; }
+      // Keep collecting rows while lines look like table rows (contain a pipe).
+      while (i < lines.length && lines[i].trim() && lines[i].includes("|")) {
+        raw.push(splitRow(lines[i]));
+        i++;
+      }
+      const cols = Math.max(...raw.map((r) => r.length));
+      const rows = raw
+        .filter((r) => r.some((c) => c.trim() !== "")) // drop blank spacer rows
+        .map((r) =>
+          Array.from({ length: cols }, (_, c) => {
+            const cell = r[c] || "";
+            const fm = cell.match(FIELD_RE);
+            if (fm) {
+              return {
+                field: {
+                  idx: idx++,
+                  kind: fm[1].toLowerCase(),
+                  label: (fm[2] || "").trim(),
+                  options: (fm[3] || "").split(",").map((s) => s.trim()).filter(Boolean),
+                },
+              };
+            }
+            return { text: cell };
+          })
+        );
       tokens.push({ type: "table", rows });
       continue;
     }
@@ -949,7 +973,11 @@ function tokenizeForm(content) {
 }
 
 function hasFields(content) {
-  return tokenizeForm(content).some((t) => t.type === "field");
+  return tokenizeForm(content).some(
+    (t) =>
+      t.type === "field" ||
+      (t.type === "table" && t.rows.some((r) => r.some((c) => c.field)))
+  );
 }
 
 // Build a PDF with AcroForm fields. `values` (optional, keyed by field idx)
@@ -972,6 +1000,43 @@ async function buildPdf(title, tokens, values, flatten) {
   const pickFont = (r) =>
     r.code ? mono : r.bold && r.italic ? boldItal : r.bold ? bold : r.italic ? ital : font;
 
+  // The standard PDF fonts can't encode smart punctuation / non-Latin glyphs,
+  // which would throw. Normalise common ones and drop anything left over.
+  const enc = (s) =>
+    String(s == null ? "" : s)
+      .replace(/[‘’‚]/g, "'")
+      .replace(/[“”„]/g, '"')
+      .replace(/[–—]/g, "-")
+      .replace(/…/g, "...")
+      .replace(/[•·]/g, "-")
+      .replace(/ /g, " ")
+      .replace(/[^\x20-\x7E]/g, "");
+
+  // Place a single AcroForm widget at an absolute box (used inside tables).
+  const addFieldWidget = (fld, x, yTop, w, h) => {
+    const name = fname(fld);
+    const v = val(fld.idx);
+    if (fld.kind === "check") {
+      const cb = form.createCheckBox(name);
+      cb.addToPage(page, { x, y: yTop - 13, width: 12, height: 12, borderWidth: 1 });
+      if (v) cb.check();
+    } else if (fld.kind === "area") {
+      const tf = form.createTextField(name);
+      tf.enableMultiline();
+      if (v) tf.setText(enc(v));
+      tf.addToPage(page, { x, y: yTop - h, width: w, height: h, borderWidth: 1 });
+    } else if (fld.kind === "select" && fld.options.length) {
+      const dd = form.createDropdown(name);
+      dd.addOptions(fld.options.map(enc));
+      if (v && fld.options.includes(v)) dd.select(enc(v));
+      dd.addToPage(page, { x, y: yTop - h, width: w, height: h, borderWidth: 1 });
+    } else {
+      const tf = form.createTextField(name);
+      if (v) tf.setText(enc(v));
+      tf.addToPage(page, { x, y: yTop - h, width: w, height: h, borderWidth: 1 });
+    }
+  };
+
   const ensure = (space) => {
     if (y - space < M) {
       page = doc.addPage([PW, PH]);
@@ -982,7 +1047,7 @@ async function buildPdf(title, tokens, values, flatten) {
   const wrapText = (text, f, size, maxW) => {
     const out = [];
     let line = "";
-    for (const w of String(text).split(/\s+/)) {
+    for (const w of enc(text).split(/\s+/)) {
       const test = line ? line + " " + w : w;
       if (f.widthOfTextAtSize(test, size) > maxW && line) {
         out.push(line);
@@ -998,7 +1063,7 @@ async function buildPdf(title, tokens, values, flatten) {
     const words = [];
     for (const r of runs) {
       const f = pickFont(r);
-      for (const part of r.text.split(/(\s+)/)) {
+      for (const part of enc(r.text).split(/(\s+)/)) {
         if (part === "") continue;
         words.push({ text: part, font: f, space: /^\s+$/.test(part) });
       }
@@ -1032,23 +1097,35 @@ async function buildPdf(title, tokens, values, flatten) {
     const size = 10, lh = size + 3, pad = 4;
     rows.forEach((row, ri) => {
       const f = ri === 0 ? bold : font;
-      const cells = [];
-      let maxLines = 1;
+      const measured = [];
+      let maxH = lh;
       for (let c = 0; c < cols; c++) {
-        const lines = wrapText(stripInline(row[c] || ""), f, size, colW - 2 * pad);
-        cells.push(lines);
-        maxLines = Math.max(maxLines, lines.length);
+        const cell = row[c] || { text: "" };
+        if (cell.field) {
+          const h = cell.field.kind === "area" ? 40 : 18;
+          measured.push({ cell, h });
+          maxH = Math.max(maxH, h);
+        } else {
+          const lines = wrapText(stripInline(cell.text || ""), f, size, colW - 2 * pad);
+          measured.push({ cell, lines });
+          maxH = Math.max(maxH, lines.length * lh);
+        }
       }
-      const rowH = maxLines * lh + 2 * pad;
+      const rowH = maxH + 2 * pad;
       ensure(rowH);
       const top = y;
       page.drawLine({ start: { x: M, y: top }, end: { x: PW - M, y: top }, thickness: 0.5, color: border });
       for (let c = 0; c < cols; c++) {
         const cx = M + c * colW;
         page.drawLine({ start: { x: cx, y: top }, end: { x: cx, y: top - rowH }, thickness: 0.5, color: border });
-        cells[c].forEach((ln, li) => {
-          page.drawText(ln, { x: cx + pad, y: top - pad - size - li * lh, size, font: f, color: ink });
-        });
+        const md = measured[c];
+        if (md.cell.field) {
+          addFieldWidget(md.cell.field, cx + pad, top - pad, colW - 2 * pad, md.h);
+        } else {
+          md.lines.forEach((ln, li) => {
+            page.drawText(ln, { x: cx + pad, y: top - pad - size - li * lh, size, font: f, color: ink });
+          });
+        }
       }
       page.drawLine({ start: { x: PW - M, y: top }, end: { x: PW - M, y: top - rowH }, thickness: 0.5, color: border });
       page.drawLine({ start: { x: M, y: top - rowH }, end: { x: PW - M, y: top - rowH }, thickness: 0.5, color: border });
@@ -1071,7 +1148,7 @@ async function buildPdf(title, tokens, values, flatten) {
     if (t.type === "text") { drawPara(t.text); continue; }
     if (t.type === "li") {
       ensure(11 + 6);
-      page.drawText("•", { x: M, y: y - 11, size: 11, font, color: ink });
+      page.drawText("-", { x: M, y: y - 11, size: 11, font, color: ink });
       drawPara(t.text, 11, M + 14);
       continue;
     }
@@ -1091,38 +1168,38 @@ async function buildPdf(title, tokens, values, flatten) {
       const cb = form.createCheckBox(fname(t));
       cb.addToPage(page, { x: M, y: y - 14, width: 12, height: 12, borderWidth: 1 });
       if (v) cb.check();
-      page.drawText(t.label, { x: M + 20, y: y - 12, size, font, color: ink });
+      page.drawText(enc(t.label), { x: M + 20, y: y - 12, size, font, color: ink });
       y -= 22;
     } else if (t.kind === "area") {
       ensure(16);
-      page.drawText(t.label, { x: M, y: y - size, size, font: bold, color: ink });
+      page.drawText(enc(t.label), { x: M, y: y - size, size, font: bold, color: ink });
       y -= size + 4;
       const h = 60;
       ensure(h + 6);
       const tf = form.createTextField(fname(t));
       tf.enableMultiline();
-      if (v) tf.setText(String(v));
+      if (v) tf.setText(enc(v));
       tf.addToPage(page, { x: M, y: y - h, width: PW - 2 * M, height: h, borderWidth: 1 });
       y -= h + 8;
     } else if (t.kind === "select" && t.options.length) {
       ensure(24);
-      const labelText = t.label + ":";
+      const labelText = enc(t.label) + ":";
       const lw = font.widthOfTextAtSize(labelText, size);
       page.drawText(labelText, { x: M, y: y - 14, size, font, color: ink });
       const dd = form.createDropdown(fname(t));
-      dd.addOptions(t.options);
-      if (v && t.options.includes(v)) dd.select(v);
+      dd.addOptions(t.options.map(enc));
+      if (v && t.options.includes(v)) dd.select(enc(v));
       const fx = M + lw + 8;
       dd.addToPage(page, { x: fx, y: y - 17, width: Math.max(120, PW - M - fx), height: 17, borderWidth: 1 });
       y -= 26;
     } else {
       // text / date / sign (or select with no options) → single-line text field
       ensure(24);
-      const labelText = t.label + ":";
+      const labelText = enc(t.label) + ":";
       const lw = font.widthOfTextAtSize(labelText, size);
       page.drawText(labelText, { x: M, y: y - 14, size, font, color: ink });
       const tf = form.createTextField(fname(t));
-      if (v) tf.setText(String(v));
+      if (v) tf.setText(enc(v));
       const fx = M + lw + 8;
       tf.addToPage(page, { x: fx, y: y - 17, width: Math.max(120, PW - M - fx), height: 17, borderWidth: 1 });
       y -= 26;
@@ -1141,6 +1218,42 @@ let fillPublic = false;
 
 function mdInline(text) {
   return window.DOMPurify.sanitize(window.marked.parseInline(text || ""));
+}
+
+// Create just the input element for a field (no label) — reused in rows and
+// table cells.
+function makeFieldInput(f) {
+  if (f.kind === "check") {
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.dataset.idx = f.idx;
+    cb.dataset.kind = "check";
+    return cb;
+  }
+  let input;
+  if (f.kind === "area") {
+    input = document.createElement("textarea");
+    input.rows = 2;
+  } else if (f.kind === "select" && f.options.length) {
+    input = document.createElement("select");
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "— choose —";
+    input.appendChild(blank);
+    for (const o of f.options) {
+      const opt = document.createElement("option");
+      opt.value = o;
+      opt.textContent = o;
+      input.appendChild(opt);
+    }
+  } else {
+    input = document.createElement("input");
+    input.type = f.kind === "date" ? "date" : "text";
+    if (f.kind === "sign") input.className = "fill-sign";
+  }
+  input.dataset.idx = f.idx;
+  input.dataset.kind = f.kind;
+  return input;
 }
 
 function renderFillForm(tokens, container) {
@@ -1178,7 +1291,12 @@ function renderFillForm(tokens, container) {
         const tr = document.createElement("tr");
         row.forEach((cell) => {
           const td = document.createElement(ri === 0 ? "th" : "td");
-          td.innerHTML = mdInline(cell);
+          if (cell.field) {
+            td.appendChild(makeFieldInput(cell.field));
+            hasAny = true;
+          } else {
+            td.innerHTML = mdInline(cell.text);
+          }
           tr.appendChild(td);
         });
         table.appendChild(tr);
@@ -1192,40 +1310,14 @@ function renderFillForm(tokens, container) {
     const row = document.createElement("label");
     row.className = "fill-row";
     if (t.kind === "check") {
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.dataset.idx = t.idx;
-      cb.dataset.kind = "check";
+      const cb = makeFieldInput(t);
       row.append(cb, document.createTextNode(" " + t.label));
     } else {
       const span = document.createElement("span");
       span.className = "fill-label";
       span.textContent = t.label;
       row.appendChild(span);
-      let input;
-      if (t.kind === "area") {
-        input = document.createElement("textarea");
-        input.rows = 3;
-      } else if (t.kind === "select" && t.options.length) {
-        input = document.createElement("select");
-        const blank = document.createElement("option");
-        blank.value = "";
-        blank.textContent = "— choose —";
-        input.appendChild(blank);
-        for (const o of t.options) {
-          const opt = document.createElement("option");
-          opt.value = o;
-          opt.textContent = o;
-          input.appendChild(opt);
-        }
-      } else {
-        input = document.createElement("input");
-        input.type = t.kind === "date" ? "date" : "text";
-        if (t.kind === "sign") input.className = "fill-sign";
-      }
-      input.dataset.idx = t.idx;
-      input.dataset.kind = t.kind;
-      row.appendChild(input);
+      row.appendChild(makeFieldInput(t));
     }
     container.appendChild(row);
   }
@@ -1262,16 +1354,22 @@ fillBack.addEventListener("click", () => {
 });
 
 fillDownloadBtn.addEventListener("click", async () => {
-  if (!window.PDFLib) return;
+  if (!window.PDFLib) {
+    alert("PDF library failed to load. Check your connection and reload.");
+    return;
+  }
   const values = collectValues(fillFormEl);
   fillDownloadBtn.disabled = true;
+  const original = fillDownloadBtn.textContent;
+  fillDownloadBtn.textContent = "Generating…";
   try {
     const blob = await buildPdf(fillTitle, fillTokens, values, true);
     downloadBlob(safeName({ title: fillTitle, content: "" }, "-filled.pdf"), blob);
-  } catch (_) {
-    /* ignore */
+  } catch (err) {
+    alert("Couldn't generate the PDF: " + (err && err.message ? err.message : err));
   } finally {
     fillDownloadBtn.disabled = false;
+    fillDownloadBtn.textContent = original;
   }
 });
 
