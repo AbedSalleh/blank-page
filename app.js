@@ -853,7 +853,7 @@ printBtn.addEventListener("click", () => {
   if (!n) return;
   // The note title is just the user's label; the document supplies its own heading.
   printArea.innerHTML = renderMarkdown(n.content);
-  window.print();
+  printWithFilename(docHeader(n.content) || noteTitle(n));
 });
 
 // ---------------------------------------------------------------------------
@@ -889,6 +889,18 @@ function stripInline(text) {
     .replace(/__(.+?)__/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/`([^`]+)`/g, "$1");
+}
+// The document's own first heading/line (skips blanks and --- rules), used to
+// name the saved/downloaded file and the print header.
+function docHeader(content) {
+  for (const raw of (content || "").split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) continue;
+    const text = stripInline(line.replace(/^#{1,6}\s*/, "")).trim();
+    if (text) return text;
+  }
+  return "";
 }
 // Split a line into styled runs for the PDF renderer.
 function parseInline(text) {
@@ -1381,11 +1393,25 @@ function buildFilledHtml(content, values) {
   return window.DOMPurify.sanitize(window.marked.parse(filled, { breaks: true }));
 }
 
+// Print, naming the saved file after the document's header (the browser uses
+// document.title as the default PDF filename). Restore the title afterwards.
+function printWithFilename(name) {
+  const prev = document.title;
+  if (name) document.title = name;
+  const restore = () => {
+    document.title = prev;
+    window.removeEventListener("afterprint", restore);
+  };
+  window.addEventListener("afterprint", restore);
+  setTimeout(restore, 60000); // safety net if afterprint never fires
+  window.print();
+}
+
 // Render the filled doc with the browser (beautiful) and open Save-as-PDF.
 fillPrintBtn.addEventListener("click", () => {
   const values = collectValues(fillFormEl);
   printArea.innerHTML = buildFilledHtml(fillContent, values);
-  window.print();
+  printWithFilename(docHeader(fillContent) || fillTitle);
 });
 
 fillBack.addEventListener("click", () => {
@@ -1404,7 +1430,10 @@ fillDownloadBtn.addEventListener("click", async () => {
   fillDownloadBtn.textContent = "Generating…";
   try {
     const blob = await buildPdf("", fillTokens, values, true);
-    downloadBlob(safeName({ title: fillTitle, content: "" }, "-filled.pdf"), blob);
+    downloadBlob(
+      safeName({ title: docHeader(fillContent) || fillTitle, content: "" }, "-filled.pdf"),
+      blob
+    );
   } catch (err) {
     alert("Couldn't generate the PDF: " + (err && err.message ? err.message : err));
   } finally {
@@ -1451,7 +1480,7 @@ generatePdfBtn.addEventListener("click", async () => {
   generatePdfBtn.disabled = true;
   try {
     const blob = await buildPdf("", tokenizeForm(n.content), null, false);
-    downloadBlob(safeName(n, ".pdf"), blob);
+    downloadBlob(safeName({ title: docHeader(n.content) || noteTitle(n), content: "" }, ".pdf"), blob);
     closeModal(formModal);
   } catch (err) {
     formMsg.textContent = "Couldn't generate PDF: " + (err.message || err);
