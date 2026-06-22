@@ -99,6 +99,17 @@ const formInsert = $("form-insert");
 const formMsg = $("form-msg");
 const formPdfBtn = $("form-pdf-btn");
 const generatePdfBtn = $("generate-pdf");
+const fillBrowserBtn = $("fill-browser-btn");
+
+const fillView = $("fill-view");
+const fillBack = $("fill-back");
+const fillTitleEl = $("fill-title");
+const fillDownloadBtn = $("fill-download");
+const fillFormEl = $("fill-form");
+
+const fillLinkBlock = $("fill-link-block");
+const fillLinkEl = $("fill-link");
+const copyFillBtn = $("copy-fill");
 
 // ---------------------------------------------------------------------------
 // Config / state
@@ -133,8 +144,8 @@ let realtimeChannel = null;
 // View helpers
 // ---------------------------------------------------------------------------
 function showView(view) {
-  [authView, appView, readerView, configError, recoveryView].forEach((v) =>
-    v.classList.add("hidden")
+  [authView, appView, readerView, configError, recoveryView, fillView].forEach(
+    (v) => v.classList.add("hidden")
   );
   view.classList.remove("hidden");
 }
@@ -859,10 +870,45 @@ function insertAtCursor(text) {
 }
 
 // Markers like [text: Label], [area: Label], [check: Label], [date: Label],
-// [select: Label = A, B, C].
-const FIELD_RE = /\[(text|area|check|date|select)\s*:\s*([^\]=]+?)(?:\s*=\s*([^\]]+))?\]/i;
+// [sign: Label], [select: Label = A, B, C].
+const FIELD_RE = /\[(text|area|check|date|sign|select)\s*:\s*([^\]=]+?)(?:\s*=\s*([^\]]+))?\]/i;
 
-async function buildFillablePdf(title, content) {
+// Parse a note into ordered tokens; fields get a stable index used to join
+// the HTML fill form to the PDF form.
+function tokenizeForm(content) {
+  const tokens = [];
+  let idx = 0;
+  for (const raw of (content || "").split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    if (!line.trim()) {
+      tokens.push({ type: "blank" });
+      continue;
+    }
+    const m = line.match(FIELD_RE);
+    if (m) {
+      tokens.push({
+        type: "field",
+        idx: idx++,
+        kind: m[1].toLowerCase(),
+        label: (m[2] || "").trim(),
+        options: (m[3] || "").split(",").map((s) => s.trim()).filter(Boolean),
+      });
+    } else {
+      const h = line.match(/^(#{1,3})\s+(.*)/);
+      if (h) tokens.push({ type: "heading", level: h[1].length, text: h[2] });
+      else tokens.push({ type: "text", text: line });
+    }
+  }
+  return tokens;
+}
+
+function hasFields(content) {
+  return tokenizeForm(content).some((t) => t.type === "field");
+}
+
+// Build a PDF with AcroForm fields. `values` (optional, keyed by field idx)
+// pre-fills the fields; `flatten` bakes them into a final, non-editable doc.
+async function buildPdf(title, tokens, values, flatten) {
   const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -872,7 +918,7 @@ async function buildFillablePdf(title, content) {
   const ink = rgb(0.1, 0.1, 0.1);
   let page = doc.addPage([PW, PH]);
   let y = PH - M;
-  let idx = 0;
+  const val = (i) => (values ? values[i] : undefined);
 
   const ensure = (space) => {
     if (y - space < M) {
@@ -898,74 +944,179 @@ async function buildFillablePdf(title, content) {
     }
     if (line) flush();
   };
-  const fieldName = (kind, label) =>
-    `${kind}_${idx++}_${(label || "field").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 30)}`;
+  const fname = (t) =>
+    `${t.kind}_${t.idx}_${(t.label || "field").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 30)}`;
 
   if (title && title.trim()) {
     drawWrapped(title.trim(), 18, bold);
     y -= 6;
   }
 
-  for (const raw of (content || "").split("\n")) {
-    const line = raw.replace(/\r$/, "");
-    if (!line.trim()) {
-      y -= 6;
-      continue;
-    }
-    const m = line.match(FIELD_RE);
-    if (!m) {
-      const h = line.match(/^(#{1,3})\s+(.*)/);
-      if (h) drawWrapped(h[2], h[1].length === 1 ? 16 : 14, bold);
-      else drawWrapped(line, 11, font);
-      continue;
-    }
-    const kind = m[1].toLowerCase();
-    const label = (m[2] || "").trim();
-    const opts = (m[3] || "").split(",").map((s) => s.trim()).filter(Boolean);
-    const size = 11;
+  for (const t of tokens) {
+    if (t.type === "blank") { y -= 6; continue; }
+    if (t.type === "heading") { drawWrapped(t.text, t.level === 1 ? 16 : 14, bold); continue; }
+    if (t.type === "text") { drawWrapped(t.text, 11, font); continue; }
 
-    if (kind === "check") {
+    const size = 11;
+    const v = val(t.idx);
+    if (t.kind === "check") {
       ensure(20);
-      const cb = form.createCheckBox(fieldName("check", label));
+      const cb = form.createCheckBox(fname(t));
       cb.addToPage(page, { x: M, y: y - 14, width: 12, height: 12, borderWidth: 1 });
-      page.drawText(label, { x: M + 20, y: y - 12, size, font, color: ink });
+      if (v) cb.check();
+      page.drawText(t.label, { x: M + 20, y: y - 12, size, font, color: ink });
       y -= 22;
-    } else if (kind === "area") {
+    } else if (t.kind === "area") {
       ensure(16);
-      page.drawText(label, { x: M, y: y - size, size, font: bold, color: ink });
+      page.drawText(t.label, { x: M, y: y - size, size, font: bold, color: ink });
       y -= size + 4;
       const h = 60;
       ensure(h + 6);
-      const tf = form.createTextField(fieldName("area", label));
+      const tf = form.createTextField(fname(t));
       tf.enableMultiline();
+      if (v) tf.setText(String(v));
       tf.addToPage(page, { x: M, y: y - h, width: PW - 2 * M, height: h, borderWidth: 1 });
       y -= h + 8;
-    } else if (kind === "select" && opts.length) {
+    } else if (t.kind === "select" && t.options.length) {
       ensure(24);
-      const labelText = label + ":";
+      const labelText = t.label + ":";
       const lw = font.widthOfTextAtSize(labelText, size);
       page.drawText(labelText, { x: M, y: y - 14, size, font, color: ink });
-      const dd = form.createDropdown(fieldName("select", label));
-      dd.addOptions(opts);
+      const dd = form.createDropdown(fname(t));
+      dd.addOptions(t.options);
+      if (v && t.options.includes(v)) dd.select(v);
       const fx = M + lw + 8;
       dd.addToPage(page, { x: fx, y: y - 17, width: Math.max(120, PW - M - fx), height: 17, borderWidth: 1 });
       y -= 26;
     } else {
-      // text or date (or select with no options) → single-line text field
+      // text / date / sign (or select with no options) → single-line text field
       ensure(24);
-      const labelText = label + ":";
+      const labelText = t.label + ":";
       const lw = font.widthOfTextAtSize(labelText, size);
       page.drawText(labelText, { x: M, y: y - 14, size, font, color: ink });
-      const tf = form.createTextField(fieldName(kind, label));
+      const tf = form.createTextField(fname(t));
+      if (v) tf.setText(String(v));
       const fx = M + lw + 8;
       tf.addToPage(page, { x: fx, y: y - 17, width: Math.max(120, PW - M - fx), height: 17, borderWidth: 1 });
       y -= 26;
     }
   }
 
+  if (flatten) form.flatten();
   const bytes = await doc.save();
   return new Blob([bytes], { type: "application/pdf" });
 }
+
+// --- In-browser fill form ---
+let fillTokens = [];
+let fillTitle = "";
+let fillPublic = false;
+
+function renderFillForm(tokens, container) {
+  container.innerHTML = "";
+  let hasAny = false;
+  for (const t of tokens) {
+    if (t.type === "heading") {
+      const h = document.createElement(t.level === 1 ? "h2" : "h3");
+      h.textContent = t.text;
+      container.appendChild(h);
+      continue;
+    }
+    if (t.type === "text") {
+      const p = document.createElement("p");
+      p.className = "fill-text";
+      p.textContent = t.text;
+      container.appendChild(p);
+      continue;
+    }
+    if (t.type !== "field") continue;
+    hasAny = true;
+
+    const row = document.createElement("label");
+    row.className = "fill-row";
+    if (t.kind === "check") {
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.dataset.idx = t.idx;
+      cb.dataset.kind = "check";
+      row.append(cb, document.createTextNode(" " + t.label));
+    } else {
+      const span = document.createElement("span");
+      span.className = "fill-label";
+      span.textContent = t.label;
+      row.appendChild(span);
+      let input;
+      if (t.kind === "area") {
+        input = document.createElement("textarea");
+        input.rows = 3;
+      } else if (t.kind === "select" && t.options.length) {
+        input = document.createElement("select");
+        const blank = document.createElement("option");
+        blank.value = "";
+        blank.textContent = "— choose —";
+        input.appendChild(blank);
+        for (const o of t.options) {
+          const opt = document.createElement("option");
+          opt.value = o;
+          opt.textContent = o;
+          input.appendChild(opt);
+        }
+      } else {
+        input = document.createElement("input");
+        input.type = t.kind === "date" ? "date" : "text";
+        if (t.kind === "sign") input.className = "fill-sign";
+      }
+      input.dataset.idx = t.idx;
+      input.dataset.kind = t.kind;
+      row.appendChild(input);
+    }
+    container.appendChild(row);
+  }
+  if (!hasAny) {
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = "This note has no fillable fields.";
+    container.appendChild(p);
+  }
+}
+
+function collectValues(container) {
+  const values = {};
+  container.querySelectorAll("[data-idx]").forEach((el) => {
+    const idx = Number(el.dataset.idx);
+    values[idx] = el.dataset.kind === "check" ? el.checked : el.value;
+  });
+  return values;
+}
+
+function openFillView(title, content, publicMode) {
+  fillTitle = title || "Form";
+  fillTokens = tokenizeForm(content);
+  fillPublic = !!publicMode;
+  fillTitleEl.textContent = fillTitle;
+  fillBack.textContent = publicMode ? "← Make your own" : "← Back";
+  renderFillForm(fillTokens, fillFormEl);
+  showView(fillView);
+}
+
+fillBack.addEventListener("click", () => {
+  if (fillPublic) location.href = location.pathname;
+  else showView(appView);
+});
+
+fillDownloadBtn.addEventListener("click", async () => {
+  if (!window.PDFLib) return;
+  const values = collectValues(fillFormEl);
+  fillDownloadBtn.disabled = true;
+  try {
+    const blob = await buildPdf(fillTitle, fillTokens, values, true);
+    downloadBlob(safeName({ title: fillTitle, content: "" }, "-filled.pdf"), blob);
+  } catch (_) {
+    /* ignore */
+  } finally {
+    fillDownloadBtn.disabled = false;
+  }
+});
 
 function openFormModal() {
   closeMenu();
@@ -983,22 +1134,28 @@ formInsert.addEventListener("click", (e) => {
   closeModal(formModal);
 });
 
-generatePdfBtn.addEventListener("click", async () => {
-  const n = currentDoc();
-  if (!n) return;
+function formGuard(n) {
+  if (!n) return false;
   if (!window.PDFLib) {
     formMsg.textContent = "PDF library failed to load. Check your connection.";
     formMsg.className = "msg error";
-    return;
+    return false;
   }
-  if (!FIELD_RE.test(n.content || "")) {
+  if (!hasFields(n.content || "")) {
     formMsg.textContent = "No field markers found — add e.g. [text: Name] first.";
     formMsg.className = "msg error";
-    return;
+    return false;
   }
+  return true;
+}
+
+// Download a blank, interactive fillable PDF.
+generatePdfBtn.addEventListener("click", async () => {
+  const n = currentDoc();
+  if (!formGuard(n)) return;
   generatePdfBtn.disabled = true;
   try {
-    const blob = await buildFillablePdf(noteTitle(n), n.content);
+    const blob = await buildPdf(noteTitle(n), tokenizeForm(n.content), null, false);
     downloadBlob(safeName(n, ".pdf"), blob);
     closeModal(formModal);
   } catch (err) {
@@ -1007,6 +1164,14 @@ generatePdfBtn.addEventListener("click", async () => {
   } finally {
     generatePdfBtn.disabled = false;
   }
+});
+
+// Fill the form in the browser, then download the completed PDF.
+fillBrowserBtn.addEventListener("click", () => {
+  const n = currentDoc();
+  if (!formGuard(n)) return;
+  closeModal(formModal);
+  openFillView(noteTitle(n), n.content, false);
 });
 
 // Import .md/.txt files (button + drag-and-drop).
@@ -1068,13 +1233,30 @@ appView.addEventListener("drop", (e) => {
 function shareUrl(id) {
   return `${location.origin}${location.pathname}?share=${id}`;
 }
+function fillUrl(id) {
+  return `${location.origin}${location.pathname}?fill=${id}`;
+}
 function updateShareUI() {
   const n = activeNote();
   const isPublic = !!(n && n.is_public);
   shareToggle.checked = isPublic;
   shareLinkRow.classList.toggle("hidden", !isPublic);
   if (isPublic && n) shareLinkEl.value = shareUrl(n.id);
+  // Offer a form-fill link when the public note actually has fillable fields.
+  const showFill = isPublic && n && hasFields(n.content || "");
+  fillLinkBlock.classList.toggle("hidden", !showFill);
+  if (showFill) fillLinkEl.value = fillUrl(n.id);
 }
+copyFillBtn.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(fillLinkEl.value);
+    copyFillBtn.textContent = "Copied!";
+    setTimeout(() => (copyFillBtn.textContent = "Copy"), 1500);
+  } catch (_) {
+    fillLinkEl.select();
+    document.execCommand("copy");
+  }
+});
 shareBtn.addEventListener("click", () => {
   closeMenu();
   sharePanel.classList.toggle("hidden");
@@ -1477,6 +1659,27 @@ async function showReader(id) {
   bodyNode.innerHTML = renderMarkdown(data.content);
 }
 
+// Public no-login fill page (?fill=<id>).
+async function showFillPublic(id) {
+  showView(fillView);
+  fillBack.textContent = "← Make your own";
+  fillPublic = true;
+  fillTitleEl.textContent = "Loading…";
+  fillFormEl.innerHTML = "";
+  const { data, error } = await client
+    .from("notes")
+    .select("title, content, is_public")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data || !data.is_public) {
+    fillTitleEl.textContent = "Not found";
+    fillFormEl.innerHTML = "<p class='muted'>This form doesn't exist or is no longer shared.</p>";
+    return;
+  }
+  document.title = (data.title || "Form") + " — Blank Page";
+  openFillView(data.title || "Form", data.content, true);
+}
+
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
@@ -1612,9 +1815,16 @@ function registerServiceWorker() {
   client = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   registerServiceWorker();
 
-  const shareId = new URLSearchParams(location.search).get("share");
+  const params = new URLSearchParams(location.search);
+  const shareId = params.get("share");
   if (shareId) {
     showReader(shareId);
+    return;
+  }
+
+  const fillId = params.get("fill");
+  if (fillId) {
+    showFillPublic(fillId);
     return;
   }
 
