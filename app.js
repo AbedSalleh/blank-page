@@ -1023,15 +1023,18 @@ async function buildPdf(title, tokens, values, flatten) {
     } else if (fld.kind === "area") {
       const tf = form.createTextField(name);
       tf.enableMultiline();
+      tf.setFontSize(11);
       if (v) tf.setText(enc(v));
       tf.addToPage(page, { x, y: yTop - h, width: w, height: h, borderWidth: 1 });
     } else if (fld.kind === "select" && fld.options.length) {
       const dd = form.createDropdown(name);
+      if (dd.setFontSize) dd.setFontSize(11);
       dd.addOptions(fld.options.map(enc));
       if (v && fld.options.includes(v)) dd.select(enc(v));
       dd.addToPage(page, { x, y: yTop - h, width: w, height: h, borderWidth: 1 });
     } else {
       const tf = form.createTextField(name);
+      tf.setFontSize(11);
       if (v) tf.setText(enc(v));
       tf.addToPage(page, { x, y: yTop - h, width: w, height: h, borderWidth: 1 });
     }
@@ -1178,6 +1181,7 @@ async function buildPdf(title, tokens, values, flatten) {
       ensure(h + 6);
       const tf = form.createTextField(fname(t));
       tf.enableMultiline();
+      tf.setFontSize(11);
       if (v) tf.setText(enc(v));
       tf.addToPage(page, { x: M, y: y - h, width: PW - 2 * M, height: h, borderWidth: 1 });
       y -= h + 8;
@@ -1187,6 +1191,7 @@ async function buildPdf(title, tokens, values, flatten) {
       const lw = font.widthOfTextAtSize(labelText, size);
       page.drawText(labelText, { x: M, y: y - 14, size, font, color: ink });
       const dd = form.createDropdown(fname(t));
+      if (dd.setFontSize) dd.setFontSize(11);
       dd.addOptions(t.options.map(enc));
       if (v && t.options.includes(v)) dd.select(enc(v));
       const fx = M + lw + 8;
@@ -1199,6 +1204,7 @@ async function buildPdf(title, tokens, values, flatten) {
       const lw = font.widthOfTextAtSize(labelText, size);
       page.drawText(labelText, { x: M, y: y - 14, size, font, color: ink });
       const tf = form.createTextField(fname(t));
+      tf.setFontSize(11);
       if (v) tf.setText(enc(v));
       const fx = M + lw + 8;
       tf.addToPage(page, { x: fx, y: y - 17, width: Math.max(120, PW - M - fx), height: 17, borderWidth: 1 });
