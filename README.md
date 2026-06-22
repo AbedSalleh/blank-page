@@ -21,8 +21,7 @@ cross-device sync — your notes live in a database, not just one browser.
   (`Ctrl`/`Cmd`+`B`, `I`, `K`).
 - 📊 **Word & character count** and a last-saved time.
 - 🌗 **Dark mode** — remembers your choice, respects your system setting.
-- 📝 **Rich editor** — write in Markdown or toggle to a WYSIWYG ("normal") view
-  at any time; both are fully editable (powered by Toast UI Editor).
+- 👁 **Markdown preview** — write in Markdown, toggle a rendered view.
 - 🔗 **Share links** — mark a note public and share a read-only link.
 - 🔑 **Password reset** and an account **Settings** panel (change email/password).
 - 📤 **Export** one note as `.md`/`.txt`, all notes as a `.zip`, or **print / save as PDF**.
