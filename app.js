@@ -654,11 +654,12 @@ async function syncPending() {
   const ids = Object.keys(q);
   if (ids.length === 0) return;
   for (const id of ids) {
-    const { error } = await client.from("notes").update(q[id]).eq("id", id);
+    const payload = q[id];
+    const { error } = await client.from("notes").update(payload).eq("id", id);
     if (!error) {
-      delete q[id];
       const local = notes.find((x) => x.id === id);
-      if (local) local.updated_at = q[id] ? q[id].updated_at : local.updated_at;
+      if (local) local.updated_at = payload.updated_at;
+      delete q[id];
     }
   }
   savePending(q);
