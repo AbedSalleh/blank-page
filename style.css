@@ -1109,3 +1109,71 @@ button {
     padding: 1.25rem;
   }
 }
+
+/* --- Make the editor preview/WYSIWYG match the Print / PDF output --- */
+.toastui-editor-contents {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--fg);
+}
+.toastui-editor-contents h1 {
+  font-size: 1.8rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: none;
+}
+.toastui-editor-contents h2 {
+  font-size: 1.25rem;
+  margin: 1.4rem 0 0.5rem;
+  padding: 0;
+  border: none;
+}
+.toastui-editor-contents h3 {
+  font-size: 1.05rem;
+  margin: 1.2rem 0 0.4rem;
+}
+.toastui-editor-contents p {
+  margin: 0.5rem 0;
+}
+.toastui-editor-contents hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.9rem 0;
+}
+.toastui-editor-contents table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
+}
+.toastui-editor-contents table th,
+.toastui-editor-contents table td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+.toastui-editor-contents table th {
+  background: var(--hover);
+}
+.toastui-editor-contents blockquote {
+  border-left: 3px solid var(--border);
+  margin-left: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+}
+.toastui-editor-contents code {
+  background: var(--hover);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+.toastui-editor-contents pre {
+  background: var(--hover);
+  padding: 0.8rem;
+  border-radius: 8px;
+}
+.toastui-editor-contents pre code {
+  background: none;
+  padding: 0;
+}
