@@ -10,15 +10,22 @@ cross-device sync — your notes live in a database, not just one browser.
 
 ## Features
 
-- ✍️ **Multiple notes** — create, rename, switch, and delete from a sidebar.
-- 🔎 **Search** across note titles and contents.
+- ✍️ **Multiple notes** — create, rename, switch, pin, tag, and delete from a sidebar.
+- 🗑 **Trash & restore** — deleted notes go to trash (kept 30 days) and can be restored.
+- 🔎 **Search** across note titles, contents, and tags.
+- ⌨️ **Command palette** — `Ctrl`/`Cmd`+`K` to jump to any note or run an action.
 - 💾 **Autosave** while you type, plus a save when you close or switch the tab.
+- 📶 **Offline editing** — edits made offline are queued and synced on reconnect.
+- 🔄 **Live sync** — changes appear across your open devices and tabs in real time.
+- ✨ **Formatting toolbar + shortcuts** — bold/italic/headings/lists/checklists
+  (`Ctrl`/`Cmd`+`B`, `I`, `K`).
 - 📊 **Word & character count** and a last-saved time.
 - 🌗 **Dark mode** — remembers your choice, respects your system setting.
 - 👁 **Markdown preview** — write in Markdown, toggle a rendered view.
 - 🔗 **Share links** — mark a note public and share a read-only link.
-- 🔑 **Password reset** — emailed secure link to set a new password.
-- 📤 **Export** a note as `.md` or `.txt`.
+- 🔑 **Password reset** and an account **Settings** panel (change email/password).
+- 📤 **Export** one note as `.md`/`.txt`, all notes as a `.zip`, or **print / save as PDF**.
+- 📥 **Import** `.md`/`.txt` files (button or drag-and-drop).
 - 📱 **Installable PWA** — add to your home screen; loads offline.
 - ⚡ **Guest mode** — skip the login and jot notes straight away; the scratchpad
   saves to that browser only (no account, no sync). Sign in later and it's
@@ -31,10 +38,11 @@ cross-device sync — your notes live in a database, not just one browser.
 - **Storage:** each note is a row in a Postgres `notes` table. Row Level
   Security restricts every user to their own notes — except notes they
   explicitly mark public, which anyone with the link can read.
-- **Offline:** a service worker caches the app so it loads without a connection
-  and shows your last-synced notes. Editing and syncing need a connection
-  (Supabase is the source of truth); offline edits are **not** queued, so
-  reconnect before relying on a save.
+- **Offline:** a service worker caches the app so it loads without a connection.
+  Edits made offline are queued in the browser and pushed to Supabase
+  automatically when you reconnect.
+- **Live sync:** Supabase Realtime streams changes to every open device/tab, so
+  notes stay in sync without a refresh.
 
 ## Setup
 
@@ -44,9 +52,13 @@ tier is plenty).
 
 ### 2. Create the database table
 In the dashboard: **SQL Editor → New query**, then run **[`schema.sql`](./schema.sql)**.
+This also enables Realtime on the `notes` table.
 
-> Upgrading an older single-note install? Run **[`migration.sql`](./migration.sql)**
-> instead — it preserves existing data.
+> **Upgrading?**
+> - From the original single-note version: run [`migration.sql`](./migration.sql), then [`migration-v3.sql`](./migration-v3.sql).
+> - From the multi-note version: run [`migration-v3.sql`](./migration-v3.sql) (adds pinning, tags, trash, and Realtime).
+>
+> Migrations preserve your existing notes.
 
 ### 3. Add your project keys
 In **Project Settings → API Keys**, copy the **Project URL** and the
@@ -95,7 +107,7 @@ python3 -m http.server 8000
 | `app.js`                      | All app logic (auth, notes, sync, UI).          |
 | `style.css`                   | Styles, theming, responsive/mobile layout.      |
 | `config.js`                   | Your Supabase URL and publishable key.          |
-| `schema.sql` / `migration.sql`| Database table and Row Level Security policies.  |
+| `schema.sql`, `migration.sql`, `migration-v3.sql` | Database table, RLS policies, and upgrades. |
 | `sw.js`, `manifest.json`, `icon.svg` | PWA: offline cache and install metadata.  |
 | `robots.txt`, `sitemap.xml`, `og-image.svg` | SEO and social-preview assets.    |
 
