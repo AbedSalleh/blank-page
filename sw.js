@@ -1,6 +1,6 @@
 // Blank Page service worker — caches the app shell so it loads offline.
 // Bump CACHE_VERSION whenever the shell files change to force an update.
-const CACHE_VERSION = "blankpage-v11";
+const CACHE_VERSION = "blankpage-v12";
 const SHELL = [
   "./",
   "./index.html",
