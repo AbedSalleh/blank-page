@@ -21,7 +21,8 @@ cross-device sync — your notes live in a database, not just one browser.
 - 📤 **Export** a note as `.md` or `.txt`.
 - 📱 **Installable PWA** — add to your home screen; loads offline.
 - ⚡ **Guest mode** — skip the login and jot notes straight away; the scratchpad
-  saves to that browser only (no account, no sync) until you sign in.
+  saves to that browser only (no account, no sync). Sign in later and it's
+  imported into your account as a note.
 
 ## How it works
 

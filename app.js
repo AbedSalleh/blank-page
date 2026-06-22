@@ -73,6 +73,7 @@ const configured =
 const CACHE_KEY = "blankpage.notes.cache";
 const GUEST_KEY = "blankpage.guest"; // the single local scratchpad
 const GUEST_FLAG = "blankpage.guest.active"; // remember the user chose guest mode
+const GUEST_IMPORT = "blankpage.guest.import"; // import scratchpad after sign-in
 let client = null;
 let currentUser = null;
 let guest = false;
@@ -275,6 +276,7 @@ async function loadNotes() {
   } else {
     notes = data || [];
     cacheNotes();
+    await maybeImportGuestNote(); // carry over a guest scratchpad, if any
   }
 
   if (notes.length === 0) {
@@ -759,11 +761,52 @@ function enterGuest() {
 }
 
 function exitGuestToAuth() {
+  guestSave(); // capture the latest text before leaving
   guest = false;
   localStorage.removeItem(GUEST_FLAG);
+  // If they wrote anything, bring it into the account after they sign in.
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(GUEST_KEY)) || {};
+  } catch (_) {
+    saved = {};
+  }
+  if ((saved.content || "").trim() || (saved.title || "").trim()) {
+    localStorage.setItem(GUEST_IMPORT, "1");
+  }
   appView.classList.remove("guest");
   guestBanner.classList.add("hidden");
   enterAuth();
+}
+
+// On first sign-in after guest mode, turn the scratchpad into a real note.
+async function maybeImportGuestNote() {
+  if (!localStorage.getItem(GUEST_IMPORT)) return;
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(GUEST_KEY)) || {};
+  } catch (_) {
+    saved = {};
+  }
+  const hasText = (saved.content || "").trim() || (saved.title || "").trim();
+  if (hasText && currentUser) {
+    const { data, error } = await client
+      .from("notes")
+      .insert({
+        user_id: currentUser.id,
+        title: (saved.title || "").trim() || "Untitled",
+        content: saved.content || "",
+        updated_at: new Date().toISOString(),
+      })
+      .select("id, title, content, is_public, updated_at")
+      .single();
+    if (!error && data) {
+      notes.unshift(data);
+      cacheNotes();
+    }
+  }
+  localStorage.removeItem(GUEST_KEY);
+  localStorage.removeItem(GUEST_IMPORT);
 }
 
 guestLink.addEventListener("click", (e) => {
