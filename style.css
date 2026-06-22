@@ -792,6 +792,19 @@ button {
   margin-top: 1rem;
   display: flex;
   justify-content: flex-end;
+  gap: 0.6rem;
+}
+.ghost-sm {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.ghost-sm:hover {
+  background: var(--hover);
 }
 .muted {
   color: var(--muted);

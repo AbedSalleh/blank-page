@@ -6,6 +6,10 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#fbfbf9" />
 
+    <!-- Defense-in-depth: only our own code + the CDN libs may run as script. -->
+    <meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self'; object-src 'none'; base-uri 'self'" />
+
     <!-- SEO -->
     <title>Blank Page — Free Online Notepad with Login &amp; Cross-Device Sync</title>
     <meta name="description"
@@ -339,7 +343,7 @@
         <p id="form-msg" class="msg"></p>
         <div class="modal-foot">
           <button id="fill-browser-btn" class="primary-sm">Fill in browser</button>
-          <button id="generate-pdf" class="primary-sm">Download blank form</button>
+          <button id="generate-pdf" class="ghost-sm">Download blank form</button>
         </div>
       </div>
     </div>
