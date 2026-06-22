@@ -56,6 +56,10 @@ const shareLinkRow = $("share-link-row");
 const shareLinkEl = $("share-link");
 const copyLinkBtn = $("copy-link");
 
+const guestLink = $("guest-link");
+const guestBanner = $("guest-banner");
+const guestSigninBtn = $("guest-signin");
+
 // ---------------------------------------------------------------------------
 // Config / state
 // ---------------------------------------------------------------------------
@@ -67,8 +71,11 @@ const configured =
   cfg.SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY";
 
 const CACHE_KEY = "blankpage.notes.cache";
+const GUEST_KEY = "blankpage.guest"; // the single local scratchpad
+const GUEST_FLAG = "blankpage.guest.active"; // remember the user chose guest mode
 let client = null;
 let currentUser = null;
+let guest = false;
 let notes = [];
 let activeId = null;
 let mode = "login";
@@ -426,6 +433,14 @@ function formatSavedTime(iso) {
 }
 
 function onEdit() {
+  if (guest) {
+    updateCounts();
+    updatePreview();
+    statusEl.textContent = "Saving…";
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(guestSave, 400);
+    return;
+  }
   const n = activeNote();
   if (!n) return;
   n.title = titleEl.value;
@@ -436,6 +451,19 @@ function onEdit() {
   statusEl.textContent = "Editing…";
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 700);
+}
+
+// Persist the guest scratchpad to this browser only.
+function guestSave() {
+  try {
+    localStorage.setItem(
+      GUEST_KEY,
+      JSON.stringify({ title: titleEl.value, content: pad.value })
+    );
+    statusEl.textContent = "Saved locally";
+  } catch (_) {
+    statusEl.textContent = "Save failed";
+  }
 }
 
 async function save() {
@@ -472,6 +500,10 @@ async function save() {
 // Flush pending edits immediately (used on logout / tab hide / unload).
 async function flush() {
   clearTimeout(saveTimer);
+  if (guest) {
+    guestSave();
+    return;
+  }
   if (dirty) await save();
 }
 
@@ -527,13 +559,18 @@ function safeName(n, ext) {
   return base.slice(0, 50) + ext;
 }
 
+// The note being edited — a cloud row, or the guest scratchpad.
+function currentDoc() {
+  return guest ? { title: titleEl.value, content: pad.value } : activeNote();
+}
+
 exportMdBtn.addEventListener("click", () => {
-  const n = activeNote();
+  const n = currentDoc();
   if (n) download(safeName(n, ".md"), n.content || "");
   closeMenu();
 });
 exportTxtBtn.addEventListener("click", () => {
-  const n = activeNote();
+  const n = currentDoc();
   if (n) download(safeName(n, ".txt"), n.content || "");
   closeMenu();
 });
@@ -676,6 +713,10 @@ async function showReader(id) {
 // Boot
 // ---------------------------------------------------------------------------
 function enterApp(user) {
+  guest = false;
+  localStorage.removeItem(GUEST_FLAG);
+  appView.classList.remove("guest");
+  guestBanner.classList.add("hidden");
   if (currentUser) return; // already in
   currentUser = user;
   whoEl.textContent = user.email;
@@ -685,12 +726,51 @@ function enterApp(user) {
 
 function enterAuth() {
   currentUser = null;
+  guest = false;
+  appView.classList.remove("guest");
+  guestBanner.classList.add("hidden");
   notes = [];
   activeId = null;
   setMode("login");
   showView(authView);
   emailEl.focus();
 }
+
+// Local scratchpad — no account, saved to this browser only.
+function enterGuest() {
+  guest = true;
+  currentUser = null;
+  localStorage.setItem(GUEST_FLAG, "1");
+  appView.classList.add("guest");
+  guestBanner.classList.remove("hidden");
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(GUEST_KEY)) || {};
+  } catch (_) {
+    saved = {};
+  }
+  titleEl.value = saved.title || "";
+  pad.value = saved.content || "";
+  updateCounts();
+  updatePreview();
+  statusEl.textContent = "Saved locally";
+  showView(appView);
+  pad.focus();
+}
+
+function exitGuestToAuth() {
+  guest = false;
+  localStorage.removeItem(GUEST_FLAG);
+  appView.classList.remove("guest");
+  guestBanner.classList.add("hidden");
+  enterAuth();
+}
+
+guestLink.addEventListener("click", (e) => {
+  e.preventDefault();
+  enterGuest();
+});
+guestSigninBtn.addEventListener("click", exitGuestToAuth);
 
 function showRecovery() {
   recovering = true;
@@ -738,6 +818,8 @@ function registerServiceWorker() {
     if (recovering) return; // stay on the set-password form until it's submitted
     if (session && session.user) {
       enterApp(session.user);
+    } else if (localStorage.getItem(GUEST_FLAG)) {
+      enterGuest(); // resume the local scratchpad they were using
     } else {
       enterAuth();
     }
