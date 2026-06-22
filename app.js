@@ -1089,7 +1089,7 @@ async function buildPdf(title, tokens, values, flatten) {
     }
     if (lineWords.length) flush();
   };
-  const drawPara = (text, size, x0) => drawRich(parseInline(text), x0 || M, size, 6);
+  const drawPara = (text, size = 11, x0) => drawRich(parseInline(text), x0 || M, size, 6);
 
   const drawTable = (rows) => {
     const cols = Math.max(...rows.map((r) => r.length));
