@@ -8,7 +8,7 @@
 
     <!-- Defense-in-depth: only our own code + the CDN libs may run as script. -->
     <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self'; object-src 'none'; base-uri 'self'" />
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self'; object-src 'none'; base-uri 'self'" />
 
     <!-- SEO -->
     <title>Blank Page — Free Online Notepad with Login &amp; Cross-Device Sync</title>
