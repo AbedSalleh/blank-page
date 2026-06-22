@@ -238,11 +238,11 @@ function initEditor() {
         editor = new window.toastui.Editor({
           el: editorHost,
           height: "100%",
-          initialEditType: "markdown",
+          initialEditType: "wysiwyg",
           previewStyle: "tab",
           usageStatistics: false,
           autofocus: false,
-          placeholder: "Start writing… (Markdown supported)",
+          placeholder: "Start writing…",
           events: { change: onEdit },
         });
         suppressChange = true;
@@ -252,6 +252,8 @@ function initEditor() {
         suppressChange = false;
         if (!ok) throw new Error("editor self-test failed");
         editorReady = true;
+        wysiwyg = true; // default to the formatted view (looks like the preview)
+        updateModeButton();
         applyEditorTheme();
       } catch (e) {
         console.error("Toast UI Editor failed; using plain textarea.", e);
