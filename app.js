@@ -190,8 +190,8 @@ function renderMarkdown(text) {
 // Editor (Toast UI) — Markdown source with a built-in WYSIWYG toggle.
 // Markdown stays the canonical value, so storage/PDF/share are unaffected.
 // ---------------------------------------------------------------------------
-const TUI_JS = "https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/toastui-editor-all.min.js";
-const TUI_CSS = "https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/toastui-editor.min.css";
+const TUI_JS = "https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js";
+const TUI_CSS = "https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css";
 
 // Ensure the Toast UI library is available, loading it dynamically if the
 // (possibly stale-cached) HTML didn't include it. Resolves true/false.

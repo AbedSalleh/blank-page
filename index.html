@@ -8,7 +8,7 @@
 
     <!-- Defense-in-depth: only our own code + the CDN libs may run as script. -->
     <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self'; object-src 'none'; base-uri 'self'" />
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://uicdn.toast.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://uicdn.toast.com; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self'; object-src 'none'; base-uri 'self'" />
 
     <!-- SEO -->
     <title>Blank Page — Free Online Notepad with Login &amp; Cross-Device Sync</title>
@@ -61,9 +61,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Blank Page" />
     <link rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/toastui-editor.min.css" />
+      href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css" />
     <link rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/theme/toastui-editor-dark.min.css" />
+      href="https://uicdn.toast.com/editor/3.2.2/theme/toastui-editor-dark.min.css" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
@@ -344,7 +344,7 @@
     <div id="print-area"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/toastui-editor-all.min.js"></script>
+    <script src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
