@@ -102,6 +102,9 @@
           <a id="forgot-link" href="#">Forgot password?</a>
         </p>
       </form>
+      <p class="guest-cta">
+        <a id="guest-link" href="#">Skip — just start writing →</a>
+      </p>
     </main>
 
     <!-- Set-new-password view (after clicking the reset email link) -->
@@ -154,6 +157,11 @@
             </div>
           </div>
         </header>
+
+        <div id="guest-banner" class="guest-banner hidden">
+          <span>✏️ Local scratchpad — saved on this device only, not synced.</span>
+          <button id="guest-signin" class="link-btn">Sign in to sync</button>
+        </div>
 
         <div id="share-panel" class="share-panel hidden">
           <label class="share-row">

@@ -376,6 +376,40 @@ button {
   border-bottom: 1px solid var(--border);
 }
 
+/* Guest (no-account) mode */
+.guest-cta {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+}
+.guest-cta a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.guest-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--hover);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.guest-banner .link-btn {
+  margin-left: auto;
+}
+/* Hide account-only features while in guest mode. */
+.app.guest .sidebar,
+.app.guest #menu-toggle,
+.app.guest #fab-new,
+.app.guest #share-btn,
+.app.guest #delete-btn,
+.app.guest #share-panel {
+  display: none !important;
+}
+
 /* Drawer backdrop (mobile) */
 .backdrop {
   position: fixed;
