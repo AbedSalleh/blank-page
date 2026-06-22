@@ -39,7 +39,9 @@ const titleEl = $("title");
 const countsEl = $("counts");
 const menuCountsEl = $("menu-counts");
 const statusEl = $("status");
-const editorHost = $("editor");
+const pad = $("pad");
+const preview = $("preview");
+const togglePreviewBtn = $("toggle-preview");
 const toggleThemeBtn = $("toggle-theme");
 const moreBtn = $("more");
 const menuPop = $("menu-pop");
@@ -55,6 +57,8 @@ const trashBtn = $("trash-btn");
 const settingsBtn = $("settings-btn");
 const deleteBtn = $("delete-btn");
 
+const toolbar = $("toolbar");
+const tagbar = $("tagbar");
 const tagChips = $("tag-chips");
 const tagInput = $("tag-input");
 
@@ -133,10 +137,9 @@ let notes = [];
 let trashData = [];
 let activeId = null;
 let mode = "login";
+let previewOn = false;
 let recovering = false;
 let realtimeChannel = null;
-let editor = null; // Toast UI Editor instance
-let suppressChange = false; // ignore editor change events while loading a note
 
 // ---------------------------------------------------------------------------
 // View helpers
@@ -183,52 +186,6 @@ function renderMarkdown(text) {
 }
 
 // ---------------------------------------------------------------------------
-// Editor (Toast UI) — Markdown source with a built-in WYSIWYG toggle.
-// Markdown stays the canonical value, so storage/PDF/share are unaffected.
-// ---------------------------------------------------------------------------
-function initEditor() {
-  if (editor || !window.toastui) return;
-  const dark = document.documentElement.dataset.theme === "dark";
-  editor = new window.toastui.Editor({
-    el: editorHost,
-    height: "100%",
-    initialEditType: "markdown",
-    previewStyle: "tab",
-    usageStatistics: false,
-    autofocus: false,
-    theme: dark ? "dark" : "default",
-    placeholder: "Start writing… (Markdown supported)",
-    toolbarItems: [
-      ["heading", "bold", "italic", "strike"],
-      ["hr", "quote"],
-      ["ul", "ol", "task"],
-      ["table", "link", "code", "codeblock"],
-    ],
-    events: { change: onEdit },
-  });
-}
-
-function getEditorValue() {
-  return editor ? editor.getMarkdown() : "";
-}
-function setEditorValue(md) {
-  if (!editor) return;
-  suppressChange = true;
-  editor.setMarkdown(md || "", false);
-  suppressChange = false;
-}
-function insertIntoEditor(text) {
-  if (editor) editor.insertText(text);
-}
-function applyEditorTheme() {
-  if (!editor) return;
-  const dark = document.documentElement.dataset.theme === "dark";
-  // Toast UI marks dark mode with .toastui-editor-dark on its root UI element.
-  const root = editorHost.querySelector(".toastui-editor-defaultUI");
-  if (root) root.classList.toggle("toastui-editor-dark", dark);
-}
-
-// ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------
 function applyTheme(theme) {
@@ -236,7 +193,6 @@ function applyTheme(theme) {
   toggleThemeBtn.textContent = theme === "dark" ? "☀️" : "🌙";
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = theme === "dark" ? "#1a1a1a" : "#fbfbf9";
-  applyEditorTheme();
 }
 
 function initTheme() {
@@ -471,8 +427,9 @@ function openNote(id) {
   const n = activeNote();
   if (!n) return;
   titleEl.value = n.title || "";
-  setEditorValue(n.content || "");
+  pad.value = n.content || "";
   updateCounts();
+  updatePreview();
   updateShareUI();
   updatePinUI();
   renderTags();
@@ -618,13 +575,17 @@ let saving = false;
 let dirty = false;
 
 function updateCounts() {
-  const text = getEditorValue();
+  const text = pad.value;
   const words = (text.trim().match(/\S+/g) || []).length;
   const label = `${words} word${words === 1 ? "" : "s"} · ${text.length} char${
     text.length === 1 ? "" : "s"
   }`;
   countsEl.textContent = label;
   menuCountsEl.textContent = label;
+}
+
+function updatePreview() {
+  if (previewOn) preview.innerHTML = renderMarkdown(pad.value);
 }
 
 function setStatusError() {
@@ -652,9 +613,9 @@ function formatSavedTime(iso) {
 }
 
 function onEdit() {
-  if (suppressChange) return; // ignore programmatic setMarkdown while loading
   if (guest) {
     updateCounts();
+    updatePreview();
     statusEl.textContent = "Saving…";
     clearTimeout(saveTimer);
     saveTimer = setTimeout(guestSave, 400);
@@ -663,9 +624,10 @@ function onEdit() {
   const n = activeNote();
   if (!n) return;
   n.title = titleEl.value;
-  n.content = getEditorValue();
+  n.content = pad.value;
   dirty = true;
   updateCounts();
+  updatePreview();
   statusEl.textContent = "Editing…";
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 700);
@@ -675,7 +637,7 @@ function guestSave() {
   try {
     localStorage.setItem(
       GUEST_KEY,
-      JSON.stringify({ title: titleEl.value, content: getEditorValue() })
+      JSON.stringify({ title: titleEl.value, content: pad.value })
     );
     statusEl.textContent = "Saved locally";
   } catch (_) {
@@ -760,7 +722,7 @@ async function flush() {
   if (dirty) await save();
 }
 
-// Editor change events are wired in initEditor(); the title has its own input.
+pad.addEventListener("input", onEdit);
 titleEl.addEventListener("input", onEdit);
 
 document.addEventListener("visibilitychange", () => {
@@ -782,6 +744,71 @@ window.addEventListener("online", () => {
 // Search
 // ---------------------------------------------------------------------------
 searchEl.addEventListener("input", renderList);
+
+// ---------------------------------------------------------------------------
+// Formatting toolbar + keyboard shortcuts
+// ---------------------------------------------------------------------------
+function applyFormat(kind) {
+  const start = pad.selectionStart;
+  const end = pad.selectionEnd;
+  const val = pad.value;
+  const sel = val.slice(start, end);
+
+  const wrap = (before, after, placeholder) => {
+    const text = sel || placeholder;
+    const out = before + text + after;
+    pad.value = val.slice(0, start) + out + val.slice(end);
+    const cursor = sel ? start + out.length : start + before.length;
+    pad.setSelectionRange(cursor, sel ? cursor : cursor + text.length);
+  };
+
+  const linePrefix = (prefix) => {
+    const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+    pad.value = val.slice(0, lineStart) + prefix + val.slice(lineStart);
+    pad.setSelectionRange(start + prefix.length, end + prefix.length);
+  };
+
+  switch (kind) {
+    case "bold": wrap("**", "**", "bold text"); break;
+    case "italic": wrap("*", "*", "italic text"); break;
+    case "code": wrap("`", "`", "code"); break;
+    case "link": wrap("[", "](https://)", "text"); break;
+    case "h1": linePrefix("# "); break;
+    case "h2": linePrefix("## "); break;
+    case "ul": linePrefix("- "); break;
+    case "checklist": linePrefix("- [ ] "); break;
+    case "quote": linePrefix("> "); break;
+  }
+  pad.focus();
+  onEdit();
+}
+
+toolbar.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-fmt]");
+  if (btn) applyFormat(btn.dataset.fmt);
+});
+
+pad.addEventListener("keydown", (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (!mod) return;
+  const key = e.key.toLowerCase();
+  if (key === "b") { e.preventDefault(); applyFormat("bold"); }
+  else if (key === "i") { e.preventDefault(); applyFormat("italic"); }
+  else if (key === "k") { e.preventDefault(); applyFormat("link"); }
+  else if (key === "s") { e.preventDefault(); flush(); }
+});
+
+// ---------------------------------------------------------------------------
+// Preview toggle
+// ---------------------------------------------------------------------------
+function togglePreview() {
+  previewOn = !previewOn;
+  preview.classList.toggle("hidden", !previewOn);
+  pad.classList.toggle("split", previewOn);
+  togglePreviewBtn.classList.toggle("on", previewOn);
+  updatePreview();
+}
+togglePreviewBtn.addEventListener("click", togglePreview);
 
 // ---------------------------------------------------------------------------
 // Export / import / print
@@ -806,7 +833,7 @@ function safeName(n, ext) {
 }
 
 function currentDoc() {
-  return guest ? { title: titleEl.value, content: getEditorValue() } : activeNote();
+  return guest ? { title: titleEl.value, content: pad.value } : activeNote();
 }
 
 exportMdBtn.addEventListener("click", () => {
@@ -848,7 +875,14 @@ printBtn.addEventListener("click", () => {
 // Fillable PDF (AcroForm) generator
 // ---------------------------------------------------------------------------
 function insertAtCursor(text) {
-  insertIntoEditor(text);
+  const s = pad.selectionStart;
+  const e = pad.selectionEnd;
+  const v = pad.value;
+  pad.value = v.slice(0, s) + text + v.slice(e);
+  const c = s + text.length;
+  pad.setSelectionRange(c, c);
+  pad.focus();
+  onEdit();
 }
 
 // Markers like [text: Label], [area: Label], [check: Label], [date: Label],
@@ -1741,6 +1775,7 @@ let paletteIndex = 0;
 function paletteActions() {
   return [
     { label: "➕  New note", run: () => createNote() },
+    { label: "👁  Toggle preview", run: togglePreview },
     { label: "🌗  Toggle dark mode", run: toggleTheme },
     { label: "📥  Import file(s)", run: () => importInput.click() },
     { label: "🗜  Export all (.zip)", run: () => exportZipBtn.click() },
@@ -1867,9 +1902,10 @@ function handleRealtime(payload) {
     if (id === activeId && dirty) return;
     notes[idx] = fresh;
     if (id === activeId) {
-      if (getEditorValue() !== (fresh.content || "")) setEditorValue(fresh.content || "");
+      if (pad.value !== (fresh.content || "")) pad.value = fresh.content || "";
       if (titleEl.value !== (fresh.title || "")) titleEl.value = fresh.title || "";
       updateCounts();
+      updatePreview();
       renderTags();
       updatePinUI();
       updateShareUI();
@@ -1995,7 +2031,6 @@ function enterApp(user) {
   currentUser = user;
   whoEl.textContent = user.email;
   showView(appView);
-  initEditor();
   loadNotes();
 }
 
@@ -2031,14 +2066,14 @@ function enterGuest() {
   } catch (_) {
     saved = {};
   }
-  showView(appView);
-  initEditor();
   titleEl.value = saved.title || "";
-  setEditorValue(saved.content || "");
+  pad.value = saved.content || "";
   tagChips.innerHTML = "";
   updateCounts();
+  updatePreview();
   statusEl.textContent = "Saved locally";
-  if (editor) editor.focus();
+  showView(appView);
+  pad.focus();
 }
 
 function exitGuestToAuth() {
