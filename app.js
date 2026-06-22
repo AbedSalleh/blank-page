@@ -1010,6 +1010,7 @@ async function buildPdf(title, tokens, values, flatten) {
       .replace(/…/g, "...")
       .replace(/[•·]/g, "-")
       .replace(/ /g, " ")
+      .replace(/\s/g, " ")
       .replace(/[^\x20-\x7E]/g, "");
 
   // Place a single AcroForm widget at an absolute box (used inside tables).
