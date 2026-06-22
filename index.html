@@ -8,7 +8,7 @@
 
     <!-- Defense-in-depth: only our own code + the CDN libs may run as script. -->
     <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self'; object-src 'none'; base-uri 'self'" />
+      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self'; object-src 'none'; base-uri 'self'" />
 
     <!-- SEO -->
     <title>Blank Page — Free Online Notepad with Login &amp; Cross-Device Sync</title>
@@ -60,6 +60,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Blank Page" />
+    <link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/toastui-editor.min.css" />
+    <link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/theme/toastui-editor-dark.min.css" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
@@ -148,7 +152,6 @@
           <span class="spacer"></span>
           <span id="counts" class="counts"></span>
           <span id="status" class="status">Saved</span>
-          <button id="toggle-preview" class="icon-btn" title="Toggle preview">👁</button>
           <button id="toggle-theme" class="icon-btn" title="Toggle dark mode">🌙</button>
           <div class="menu">
             <button id="more" class="icon-btn" title="More">⋯</button>
@@ -192,18 +195,6 @@
           </div>
         </div>
 
-        <div id="toolbar" class="toolbar">
-          <button type="button" data-fmt="bold" title="Bold (Ctrl/Cmd+B)"><b>B</b></button>
-          <button type="button" data-fmt="italic" title="Italic (Ctrl/Cmd+I)"><i>I</i></button>
-          <button type="button" data-fmt="h1" title="Heading 1">H1</button>
-          <button type="button" data-fmt="h2" title="Heading 2">H2</button>
-          <button type="button" data-fmt="ul" title="Bulleted list">•</button>
-          <button type="button" data-fmt="checklist" title="Checklist">☑</button>
-          <button type="button" data-fmt="quote" title="Quote">&ldquo;</button>
-          <button type="button" data-fmt="code" title="Code">&lt;/&gt;</button>
-          <button type="button" data-fmt="link" title="Link (Ctrl/Cmd+K)">🔗</button>
-        </div>
-
         <div id="tagbar" class="tagbar">
           <span id="tag-chips" class="tag-chips"></span>
           <input id="tag-input" class="tag-input" type="text"
@@ -211,9 +202,9 @@
         </div>
 
         <div class="editor-wrap">
-          <textarea id="pad" placeholder="Start writing…  (Markdown supported)"
-            spellcheck="true"></textarea>
-          <div id="preview" class="preview hidden"></div>
+          <div id="editor"></div>
+          <textarea id="pad" class="pad-fallback hidden"
+            placeholder="Start writing… (Markdown supported)" spellcheck="true"></textarea>
         </div>
 
         <button id="fab-new" class="fab" title="New note" aria-label="New note">+</button>
@@ -352,6 +343,7 @@
     <div id="print-area"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/toastui-editor-all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>

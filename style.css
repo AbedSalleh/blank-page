@@ -476,6 +476,15 @@ button {
   display: flex;
   min-height: 0;
 }
+#editor {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+/* Let the editor own its chrome; keep our app bg behind it. */
+.toastui-editor-defaultUI {
+  border: none !important;
+}
 
 #pad {
   flex: 1;
@@ -1050,4 +1059,19 @@ button {
 }
 .fill-table th {
   background: var(--hover);
+}
+
+/* Plain-textarea fallback (used only if the rich editor fails to load) */
+.pad-fallback {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 1.5rem clamp(1rem, 6vw, 5rem);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
