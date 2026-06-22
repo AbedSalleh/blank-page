@@ -1000,3 +1000,24 @@ button {
   font-size: 0.78rem;
   color: var(--muted);
 }
+
+/* Markdown blocks inside the fill form */
+.fill-li {
+  margin: 0.2rem 0 0.2rem 0.5rem;
+}
+.fill-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
+  font-size: 0.88rem;
+}
+.fill-table th,
+.fill-table td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+.fill-table th {
+  background: var(--hover);
+}
