@@ -25,6 +25,9 @@ cross-device sync — your notes live in a database, not just one browser.
 - 🔗 **Share links** — mark a note public and share a read-only link.
 - 🔑 **Password reset** and an account **Settings** panel (change email/password).
 - 📤 **Export** one note as `.md`/`.txt`, all notes as a `.zip`, or **print / save as PDF**.
+- 📝 **Fillable PDFs (AcroForm)** — mark up a note with field markers
+  (`[text: …]`, `[area: …]`, `[check: …]`, `[date: …]`, `[select: … = A, B, C]`)
+  and generate a PDF with interactive form fields anyone can fill in a PDF reader.
 - 📥 **Import** `.md`/`.txt` files (button or drag-and-drop).
 - 📱 **Installable PWA** — add to your home screen; loads offline.
 - ⚡ **Guest mode** — skip the login and jot notes straight away; the scratchpad
