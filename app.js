@@ -874,16 +874,57 @@ function insertAtCursor(text) {
 const FIELD_RE = /\[(text|area|check|date|sign|select)\s*:\s*([^\]=]+?)(?:\s*=\s*([^\]]+))?\]/i;
 
 // Parse a note into ordered tokens; fields get a stable index used to join
-// the HTML fill form to the PDF form.
+// the HTML fill form to the PDF form. Also recognises Markdown blocks
+// (headings, horizontal rules, bullet lists, tables) so they render properly.
+function splitRow(line) {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+}
+function stripInline(text) {
+  return (text || "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1");
+}
+// Split a line into styled runs for the PDF renderer.
+function parseInline(text) {
+  const runs = [];
+  const re = /(\*\*|__)(.+?)\1|(\*|_)(.+?)\3|`([^`]+)`/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) runs.push({ text: text.slice(last, m.index) });
+    if (m[1]) runs.push({ text: m[2], bold: true });
+    else if (m[3]) runs.push({ text: m[4], italic: true });
+    else if (m[5]) runs.push({ text: m[5], code: true });
+    last = re.lastIndex;
+  }
+  if (last < text.length) runs.push({ text: text.slice(last) });
+  return runs.length ? runs : [{ text: text || "" }];
+}
+
 function tokenizeForm(content) {
+  const lines = (content || "").split("\n").map((l) => l.replace(/\r$/, ""));
   const tokens = [];
-  let idx = 0;
-  for (const raw of (content || "").split("\n")) {
-    const line = raw.replace(/\r$/, "");
-    if (!line.trim()) {
-      tokens.push({ type: "blank" });
+  let idx = 0, i = 0;
+  const isRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+  const isSep = (l) => /-/.test(l) && /^\s*\|?[\s:|-]+\|?\s*$/.test(l);
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { tokens.push({ type: "blank" }); i++; continue; }
+
+    // Markdown table: a row followed by a |---|---| separator.
+    if (isRow(line) && i + 1 < lines.length && isSep(lines[i + 1])) {
+      const rows = [splitRow(line)];
+      i += 2;
+      while (i < lines.length && isRow(lines[i])) { rows.push(splitRow(lines[i])); i++; }
+      tokens.push({ type: "table", rows });
       continue;
     }
+
     const m = line.match(FIELD_RE);
     if (m) {
       tokens.push({
@@ -893,11 +934,16 @@ function tokenizeForm(content) {
         label: (m[2] || "").trim(),
         options: (m[3] || "").split(",").map((s) => s.trim()).filter(Boolean),
       });
-    } else {
-      const h = line.match(/^(#{1,3})\s+(.*)/);
-      if (h) tokens.push({ type: "heading", level: h[1].length, text: h[2] });
-      else tokens.push({ type: "text", text: line });
+      i++;
+      continue;
     }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) { tokens.push({ type: "hr" }); i++; continue; }
+    const h = line.match(/^(#{1,3})\s+(.*)/);
+    if (h) { tokens.push({ type: "heading", level: h[1].length, text: h[2] }); i++; continue; }
+    const li = line.match(/^\s*[-*+]\s+(.*)/);
+    if (li) { tokens.push({ type: "li", text: li[1] }); i++; continue; }
+    tokens.push({ type: "text", text: line });
+    i++;
   }
   return tokens;
 }
@@ -913,12 +959,18 @@ async function buildPdf(title, tokens, values, flatten) {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const ital = await doc.embedFont(StandardFonts.HelveticaOblique);
+  const boldItal = await doc.embedFont(StandardFonts.HelveticaBoldOblique);
+  const mono = await doc.embedFont(StandardFonts.Courier);
   const form = doc.getForm();
   const PW = 612, PH = 792, M = 50;
   const ink = rgb(0.1, 0.1, 0.1);
+  const border = rgb(0.7, 0.7, 0.7);
   let page = doc.addPage([PW, PH]);
   let y = PH - M;
   const val = (i) => (values ? values[i] : undefined);
+  const pickFont = (r) =>
+    r.code ? mono : r.bold && r.italic ? boldItal : r.bold ? bold : r.italic ? ital : font;
 
   const ensure = (space) => {
     if (y - space < M) {
@@ -926,36 +978,111 @@ async function buildPdf(title, tokens, values, flatten) {
       y = PH - M;
     }
   };
-  const drawWrapped = (text, size, f) => {
-    const maxW = PW - 2 * M;
+  // Wrap a single-font string into lines that fit a width.
+  const wrapText = (text, f, size, maxW) => {
+    const out = [];
     let line = "";
-    const flush = () => {
-      ensure(size + 6);
-      page.drawText(line, { x: M, y: y - size, size, font: f, color: ink });
-      y -= size + 6;
-      line = "";
-    };
-    for (const w of text.split(/\s+/)) {
+    for (const w of String(text).split(/\s+/)) {
       const test = line ? line + " " + w : w;
       if (f.widthOfTextAtSize(test, size) > maxW && line) {
-        flush();
+        out.push(line);
         line = w;
       } else line = test;
     }
-    if (line) flush();
+    if (line) out.push(line);
+    return out.length ? out : [""];
   };
+  // Draw inline-formatted (bold/italic/code) runs with word wrapping.
+  const drawRich = (runs, x0, size, gap) => {
+    const maxW = PW - x0 - M;
+    const words = [];
+    for (const r of runs) {
+      const f = pickFont(r);
+      for (const part of r.text.split(/(\s+)/)) {
+        if (part === "") continue;
+        words.push({ text: part, font: f, space: /^\s+$/.test(part) });
+      }
+    }
+    let lineWords = [], lineW = 0;
+    const flush = () => {
+      ensure(size + gap);
+      let x = x0;
+      for (const w of lineWords) {
+        if (!w.space) page.drawText(w.text, { x, y: y - size, size, font: w.font, color: ink });
+        x += w.font.widthOfTextAtSize(w.text, size);
+      }
+      y -= size + gap;
+      lineWords = [];
+      lineW = 0;
+    };
+    for (const w of words) {
+      const ww = w.font.widthOfTextAtSize(w.text, size);
+      if (!w.space && lineW + ww > maxW && lineWords.length) flush();
+      if (w.space && lineWords.length === 0) continue;
+      lineWords.push(w);
+      lineW += ww;
+    }
+    if (lineWords.length) flush();
+  };
+  const drawPara = (text, size, x0) => drawRich(parseInline(text), x0 || M, size, 6);
+
+  const drawTable = (rows) => {
+    const cols = Math.max(...rows.map((r) => r.length));
+    const colW = (PW - 2 * M) / cols;
+    const size = 10, lh = size + 3, pad = 4;
+    rows.forEach((row, ri) => {
+      const f = ri === 0 ? bold : font;
+      const cells = [];
+      let maxLines = 1;
+      for (let c = 0; c < cols; c++) {
+        const lines = wrapText(stripInline(row[c] || ""), f, size, colW - 2 * pad);
+        cells.push(lines);
+        maxLines = Math.max(maxLines, lines.length);
+      }
+      const rowH = maxLines * lh + 2 * pad;
+      ensure(rowH);
+      const top = y;
+      page.drawLine({ start: { x: M, y: top }, end: { x: PW - M, y: top }, thickness: 0.5, color: border });
+      for (let c = 0; c < cols; c++) {
+        const cx = M + c * colW;
+        page.drawLine({ start: { x: cx, y: top }, end: { x: cx, y: top - rowH }, thickness: 0.5, color: border });
+        cells[c].forEach((ln, li) => {
+          page.drawText(ln, { x: cx + pad, y: top - pad - size - li * lh, size, font: f, color: ink });
+        });
+      }
+      page.drawLine({ start: { x: PW - M, y: top }, end: { x: PW - M, y: top - rowH }, thickness: 0.5, color: border });
+      page.drawLine({ start: { x: M, y: top - rowH }, end: { x: PW - M, y: top - rowH }, thickness: 0.5, color: border });
+      y = top - rowH;
+    });
+    y -= 6;
+  };
+
   const fname = (t) =>
     `${t.kind}_${t.idx}_${(t.label || "field").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 30)}`;
 
   if (title && title.trim()) {
-    drawWrapped(title.trim(), 18, bold);
-    y -= 6;
+    drawRich([{ text: title.trim(), bold: true }], M, 18, 8);
+    y -= 4;
   }
 
   for (const t of tokens) {
     if (t.type === "blank") { y -= 6; continue; }
-    if (t.type === "heading") { drawWrapped(t.text, t.level === 1 ? 16 : 14, bold); continue; }
-    if (t.type === "text") { drawWrapped(t.text, 11, font); continue; }
+    if (t.type === "heading") { drawRich(parseInline(t.text), M, t.level === 1 ? 16 : 14, 6); continue; }
+    if (t.type === "text") { drawPara(t.text); continue; }
+    if (t.type === "li") {
+      ensure(11 + 6);
+      page.drawText("•", { x: M, y: y - 11, size: 11, font, color: ink });
+      drawPara(t.text, 11, M + 14);
+      continue;
+    }
+    if (t.type === "hr") {
+      ensure(12);
+      y -= 4;
+      page.drawLine({ start: { x: M, y }, end: { x: PW - M, y }, thickness: 0.5, color: border });
+      y -= 8;
+      continue;
+    }
+    if (t.type === "table") { drawTable(t.rows); continue; }
 
     const size = 11;
     const v = val(t.idx);
@@ -1012,21 +1139,51 @@ let fillTokens = [];
 let fillTitle = "";
 let fillPublic = false;
 
+function mdInline(text) {
+  return window.DOMPurify.sanitize(window.marked.parseInline(text || ""));
+}
+
 function renderFillForm(tokens, container) {
   container.innerHTML = "";
   let hasAny = false;
   for (const t of tokens) {
     if (t.type === "heading") {
       const h = document.createElement(t.level === 1 ? "h2" : "h3");
-      h.textContent = t.text;
+      h.innerHTML = mdInline(t.text);
       container.appendChild(h);
       continue;
     }
     if (t.type === "text") {
       const p = document.createElement("p");
       p.className = "fill-text";
-      p.textContent = t.text;
+      p.innerHTML = mdInline(t.text);
       container.appendChild(p);
+      continue;
+    }
+    if (t.type === "li") {
+      const p = document.createElement("p");
+      p.className = "fill-text fill-li";
+      p.innerHTML = "• " + mdInline(t.text);
+      container.appendChild(p);
+      continue;
+    }
+    if (t.type === "hr") {
+      container.appendChild(document.createElement("hr"));
+      continue;
+    }
+    if (t.type === "table") {
+      const table = document.createElement("table");
+      table.className = "fill-table";
+      t.rows.forEach((row, ri) => {
+        const tr = document.createElement("tr");
+        row.forEach((cell) => {
+          const td = document.createElement(ri === 0 ? "th" : "td");
+          td.innerHTML = mdInline(cell);
+          tr.appendChild(td);
+        });
+        table.appendChild(tr);
+      });
+      container.appendChild(table);
       continue;
     }
     if (t.type !== "field") continue;

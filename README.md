@@ -28,7 +28,8 @@ cross-device sync — your notes live in a database, not just one browser.
 - 📝 **Fillable PDFs (AcroForm)** — mark up a note with field markers
   (`[text: …]`, `[area: …]`, `[check: …]`, `[date: …]`, `[sign: …]`,
   `[select: … = A, B, C]`) and either download a blank fillable PDF or
-  **fill it in the browser** and download the completed copy.
+  **fill it in the browser** and download the completed copy. Surrounding
+  Markdown (headings, **bold**, lists, tables, rules) is rendered in the PDF.
 - 🤝 **Form-fill links** — share a `?fill=<id>` link so counterparties can fill a
   form (name, date, typed signature, etc.) with **no account** and download the
   finished PDF to send back.
