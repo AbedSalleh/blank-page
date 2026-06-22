@@ -450,7 +450,7 @@ async function createNote() {
     .select(COLS)
     .single();
   if (error) {
-    statusEl.textContent = navigator.onLine ? "Save failed" : "Offline";
+    reportDbError("Couldn't create note", error);
     return;
   }
   notes.unshift(data);
@@ -476,7 +476,7 @@ deleteBtn.addEventListener("click", async () => {
     .from("notes")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", n.id);
-  if (error) return setStatusError();
+  if (error) return reportDbError("Couldn't delete note", error);
   notes = notes.filter((x) => x.id !== n.id);
   cacheNotes();
   if (notes.length === 0) await createNote();
@@ -497,7 +497,7 @@ pinBtn.addEventListener("click", async () => {
   closeMenu();
   const next = !n.pinned;
   const { error } = await client.from("notes").update({ pinned: next }).eq("id", n.id);
-  if (error) return setStatusError();
+  if (error) return reportDbError("Couldn't pin note", error);
   n.pinned = next;
   cacheNotes();
   sortNotes();
@@ -590,6 +590,21 @@ function updatePreview() {
 
 function setStatusError() {
   statusEl.textContent = "Save failed";
+}
+
+// Surface a database error instead of failing silently. A missing column
+// (e.g. pinned/tags/deleted_at) means migration-v3.sql hasn't been run.
+function reportDbError(context, error) {
+  console.error(context, error);
+  statusEl.textContent = "Error";
+  const msg = (error && error.message) || String(error);
+  let hint = "";
+  if (/column .* does not exist|deleted_at|pinned|tags/i.test(msg)) {
+    hint =
+      "\n\nThis usually means the database needs updating — run migration-v3.sql " +
+      "in your Supabase SQL editor.";
+  }
+  alert(context + ": " + msg + hint);
 }
 
 function formatSavedTime(iso) {
