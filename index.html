@@ -179,6 +179,13 @@
             <input id="share-link" class="share-link" readonly />
             <button id="copy-link" class="primary-sm">Copy</button>
           </div>
+          <div id="fill-link-block" class="hidden">
+            <label class="share-sublabel">Form-fill link (counterparties fill &amp; download — no account):</label>
+            <div class="share-link-row">
+              <input id="fill-link" class="share-link" readonly />
+              <button id="copy-fill" class="primary-sm">Copy</button>
+            </div>
+          </div>
         </div>
 
         <div id="toolbar" class="toolbar">
@@ -207,6 +214,19 @@
 
         <button id="fab-new" class="fab" title="New note" aria-label="New note">+</button>
       </main>
+    </div>
+
+    <!-- Fill-in-browser view (owner preview + public ?fill link) -->
+    <div id="fill-view" class="fill-view hidden">
+      <header class="fill-bar">
+        <button id="fill-back" class="link-btn">← Back</button>
+        <span id="fill-title" class="fill-title"></span>
+        <span class="spacer"></span>
+        <button id="fill-download" class="primary-sm">Download filled PDF</button>
+      </header>
+      <div class="fill-scroll">
+        <form id="fill-form" class="fill-form"></form>
+      </div>
     </div>
 
     <!-- Public read-only share view -->
@@ -304,6 +324,7 @@
           <div><code>[area: Label]</code> — multi-line box</div>
           <div><code>[check: Label]</code> — checkbox</div>
           <div><code>[date: Label]</code> — date field</div>
+          <div><code>[sign: Label]</code> — signature (typed)</div>
           <div><code>[select: Label = A, B, C]</code> — dropdown</div>
         </div>
         <div id="form-insert" class="form-insert">
@@ -311,11 +332,13 @@
           <button type="button" data-snip="[area: Label]">+ Area</button>
           <button type="button" data-snip="[check: Label]">+ Checkbox</button>
           <button type="button" data-snip="[date: Label]">+ Date</button>
+          <button type="button" data-snip="[sign: Signature]">+ Signature</button>
           <button type="button" data-snip="[select: Label = Option 1, Option 2]">+ Dropdown</button>
         </div>
         <p id="form-msg" class="msg"></p>
         <div class="modal-foot">
-          <button id="generate-pdf" class="primary-sm">Generate fillable PDF</button>
+          <button id="fill-browser-btn" class="primary-sm">Fill in browser</button>
+          <button id="generate-pdf" class="primary-sm">Download blank form</button>
         </div>
       </div>
     </div>

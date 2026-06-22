@@ -26,8 +26,12 @@ cross-device sync — your notes live in a database, not just one browser.
 - 🔑 **Password reset** and an account **Settings** panel (change email/password).
 - 📤 **Export** one note as `.md`/`.txt`, all notes as a `.zip`, or **print / save as PDF**.
 - 📝 **Fillable PDFs (AcroForm)** — mark up a note with field markers
-  (`[text: …]`, `[area: …]`, `[check: …]`, `[date: …]`, `[select: … = A, B, C]`)
-  and generate a PDF with interactive form fields anyone can fill in a PDF reader.
+  (`[text: …]`, `[area: …]`, `[check: …]`, `[date: …]`, `[sign: …]`,
+  `[select: … = A, B, C]`) and either download a blank fillable PDF or
+  **fill it in the browser** and download the completed copy.
+- 🤝 **Form-fill links** — share a `?fill=<id>` link so counterparties can fill a
+  form (name, date, typed signature, etc.) with **no account** and download the
+  finished PDF to send back.
 - 📥 **Import** `.md`/`.txt` files (button or drag-and-drop).
 - 📱 **Installable PWA** — add to your home screen; loads offline.
 - ⚡ **Guest mode** — skip the login and jot notes straight away; the scratchpad

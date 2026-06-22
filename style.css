@@ -914,3 +914,89 @@ button {
 .form-insert button:hover {
   background: var(--hover);
 }
+
+/* --- In-browser fill view --- */
+.fill-view {
+  height: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.fill-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  padding-top: calc(0.6rem + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.fill-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fill-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+}
+.fill-form {
+  width: 100%;
+  max-width: 680px;
+  padding: 1.5rem clamp(1rem, 4vw, 2rem) 4rem;
+}
+.fill-form h2,
+.fill-form h3 {
+  margin: 1.2rem 0 0.4rem;
+}
+.fill-text {
+  margin: 0.4rem 0;
+}
+.fill-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.85rem 0;
+  font-size: 0.95rem;
+}
+.fill-label {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.fill-form input[type="text"],
+.fill-form input[type="date"],
+.fill-form textarea,
+.fill-form select {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 16px;
+  outline: none;
+  width: 100%;
+}
+.fill-form input:focus,
+.fill-form textarea:focus,
+.fill-form select:focus {
+  border-color: var(--accent);
+}
+.fill-form input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.fill-sign {
+  font-family: "Segoe Script", "Bradley Hand", cursive;
+  font-size: 1.3rem !important;
+}
+.share-sublabel {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
