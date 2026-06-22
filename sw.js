@@ -1,6 +1,6 @@
 // Blank Page service worker — caches the app shell so it loads offline.
 // Bump CACHE_VERSION whenever the shell files change to force an update.
-const CACHE_VERSION = "blankpage-v26";
+const CACHE_VERSION = "blankpage-v27";
 const SHELL = [
   "./",
   "./index.html",
@@ -40,18 +40,18 @@ self.addEventListener("fetch", (event) => {
   // Never cache Supabase API/auth traffic — always go to the network.
   if (/supabase\.(co|in)$/.test(url.hostname)) return;
 
-  // Same-origin shell: cache-first, fall back to network and update cache.
+  // Same-origin app files: NETWORK-FIRST so updates always land (falling back
+  // to cache only when offline). Cache-first here caused stale HTML/JS to keep
+  // loading after deploys.
   if (url.origin === location.origin) {
     event.respondWith(
-      caches.match(req).then(
-        (cached) =>
-          cached ||
-          fetch(req).then((res) => {
-            const copy = res.clone();
-            caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
-            return res;
-          })
-      )
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+          return res;
+        })
+        .catch(() => caches.match(req))
     );
     return;
   }

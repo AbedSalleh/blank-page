@@ -190,50 +190,77 @@ function renderMarkdown(text) {
 // Editor (Toast UI) — Markdown source with a built-in WYSIWYG toggle.
 // Markdown stays the canonical value, so storage/PDF/share are unaffected.
 // ---------------------------------------------------------------------------
+const TUI_JS = "https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/toastui-editor-all.min.js";
+const TUI_CSS = "https://cdn.jsdelivr.net/npm/@toast-ui/editor@3.2.2/dist/toastui-editor.min.css";
+
+// Ensure the Toast UI library is available, loading it dynamically if the
+// (possibly stale-cached) HTML didn't include it. Resolves true/false.
+function ensureToastUi() {
+  return new Promise((resolve) => {
+    if (window.toastui && window.toastui.Editor) return resolve(true);
+    if (!document.querySelector('link[href*="toastui-editor"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = TUI_CSS;
+      document.head.appendChild(link);
+    }
+    const s = document.createElement("script");
+    s.src = TUI_JS;
+    s.onload = () => resolve(!!(window.toastui && window.toastui.Editor));
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+}
+
+function loadCurrentIntoEditor() {
+  if (guest) {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem(GUEST_KEY)) || {}; } catch (_) {}
+    setEditorValue(s.content || "");
+    updateCounts();
+  } else if (activeId) {
+    const n = activeNote();
+    if (n) { setEditorValue(n.content || ""); updateCounts(); }
+  }
+}
+
 function initEditor() {
   if (editor || usingFallback || editorReady) return;
-  // Create after layout settles so the editor doesn't render at 0 height.
-  requestAnimationFrame(() => {
-    if (!window.toastui || !window.toastui.Editor) {
-      useFallback("Editor library unavailable");
+  ensureToastUi().then((available) => {
+    if (!available) {
+      useFallback("Toast UI library failed to load from CDN");
+      loadCurrentIntoEditor();
       return;
     }
-    try {
-      editor = new window.toastui.Editor({
-        el: editorHost,
-        height: "100%",
-        initialEditType: "markdown",
-        previewStyle: "tab",
-        usageStatistics: false,
-        autofocus: false,
-        placeholder: "Start writing… (Markdown supported)",
-        events: { change: onEdit },
-      });
-      // Self-test: confirm the editor round-trips text. If not, fall back.
-      suppressChange = true;
-      editor.setMarkdown("probe", false);
-      const ok = editor.getMarkdown && editor.getMarkdown().indexOf("probe") !== -1;
-      editor.setMarkdown("", false);
-      suppressChange = false;
-      if (!ok) throw new Error("editor self-test failed");
-      editorReady = true;
-      applyEditorTheme();
-    } catch (e) {
-      console.error("Toast UI Editor failed; using plain textarea.", e);
-      try { if (editor) editor.destroy(); } catch (_) {}
-      editor = null;
-      useFallback("Editor failed to load");
-    }
-    // Load whatever should currently be shown now that the editor exists.
-    if (guest) {
-      let s = {};
-      try { s = JSON.parse(localStorage.getItem(GUEST_KEY)) || {}; } catch (_) {}
-      setEditorValue(s.content || "");
-      updateCounts();
-    } else if (activeId) {
-      const n = activeNote();
-      if (n) { setEditorValue(n.content || ""); updateCounts(); }
-    }
+    // Create after layout settles so the editor doesn't render at 0 height.
+    requestAnimationFrame(() => {
+      try {
+        editor = new window.toastui.Editor({
+          el: editorHost,
+          height: "100%",
+          initialEditType: "markdown",
+          previewStyle: "tab",
+          usageStatistics: false,
+          autofocus: false,
+          placeholder: "Start writing… (Markdown supported)",
+          events: { change: onEdit },
+        });
+        suppressChange = true;
+        editor.setMarkdown("probe", false);
+        const ok = editor.getMarkdown && editor.getMarkdown().indexOf("probe") !== -1;
+        editor.setMarkdown("", false);
+        suppressChange = false;
+        if (!ok) throw new Error("editor self-test failed");
+        editorReady = true;
+        applyEditorTheme();
+      } catch (e) {
+        console.error("Toast UI Editor failed; using plain textarea.", e);
+        try { if (editor) editor.destroy(); } catch (_) {}
+        editor = null;
+        useFallback("Editor threw on init");
+      }
+      loadCurrentIntoEditor();
+    });
   });
 }
 
