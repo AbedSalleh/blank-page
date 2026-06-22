@@ -105,6 +105,7 @@ const fillView = $("fill-view");
 const fillBack = $("fill-back");
 const fillTitleEl = $("fill-title");
 const fillDownloadBtn = $("fill-download");
+const fillPrintBtn = $("fill-print");
 const fillFormEl = $("fill-form");
 
 const fillLinkBlock = $("fill-link-block");
@@ -1221,6 +1222,7 @@ async function buildPdf(title, tokens, values, flatten) {
 // --- In-browser fill form ---
 let fillTokens = [];
 let fillTitle = "";
+let fillContent = "";
 let fillPublic = false;
 
 function mdInline(text) {
@@ -1347,6 +1349,7 @@ function collectValues(container) {
 
 function openFillView(title, content, publicMode) {
   fillTitle = title || "Form";
+  fillContent = content || "";
   fillTokens = tokenizeForm(content);
   fillPublic = !!publicMode;
   fillTitleEl.textContent = fillTitle;
@@ -1354,6 +1357,37 @@ function openFillView(title, content, publicMode) {
   renderFillForm(fillTokens, fillFormEl);
   showView(fillView);
 }
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Substitute entered values into the note and render it as HTML — used to
+// print/save a beautiful filled document (same engine as the preview).
+function buildFilledHtml(content, values) {
+  const re = new RegExp(FIELD_RE.source, "gi");
+  let i = 0;
+  const filled = content.replace(re, (m, kind) => {
+    const v = values[i++];
+    const k = (kind || "").toLowerCase();
+    if (k === "check") return v ? "☒" : "☐";
+    const cls = k === "sign" ? "sig" : "ul";
+    const inner =
+      v == null || v === ""
+        ? "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+        : escapeHtml(String(v));
+    return `<span class="${cls}">${inner}</span>`;
+  });
+  return window.DOMPurify.sanitize(window.marked.parse(filled, { breaks: true }));
+}
+
+// Render the filled doc with the browser (beautiful) and open Save-as-PDF.
+fillPrintBtn.addEventListener("click", () => {
+  const values = collectValues(fillFormEl);
+  printArea.innerHTML =
+    "<h1>" + escapeHtml(fillTitle) + "</h1>" + buildFilledHtml(fillContent, values);
+  window.print();
+});
 
 fillBack.addEventListener("click", () => {
   if (fillPublic) location.href = location.pathname;
