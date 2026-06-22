@@ -850,9 +850,8 @@ printBtn.addEventListener("click", () => {
   closeMenu();
   const n = currentDoc();
   if (!n) return;
-  const heading = noteTitle(n);
-  printArea.innerHTML =
-    "<h1>" + window.DOMPurify.sanitize(heading) + "</h1>" + renderMarkdown(n.content);
+  // The note title is just the user's label; the document supplies its own heading.
+  printArea.innerHTML = renderMarkdown(n.content);
   window.print();
 });
 
@@ -1384,8 +1383,7 @@ function buildFilledHtml(content, values) {
 // Render the filled doc with the browser (beautiful) and open Save-as-PDF.
 fillPrintBtn.addEventListener("click", () => {
   const values = collectValues(fillFormEl);
-  printArea.innerHTML =
-    "<h1>" + escapeHtml(fillTitle) + "</h1>" + buildFilledHtml(fillContent, values);
+  printArea.innerHTML = buildFilledHtml(fillContent, values);
   window.print();
 });
 
@@ -1404,7 +1402,7 @@ fillDownloadBtn.addEventListener("click", async () => {
   const original = fillDownloadBtn.textContent;
   fillDownloadBtn.textContent = "Generating…";
   try {
-    const blob = await buildPdf(fillTitle, fillTokens, values, true);
+    const blob = await buildPdf("", fillTokens, values, true);
     downloadBlob(safeName({ title: fillTitle, content: "" }, "-filled.pdf"), blob);
   } catch (err) {
     alert("Couldn't generate the PDF: " + (err && err.message ? err.message : err));
@@ -1451,7 +1449,7 @@ generatePdfBtn.addEventListener("click", async () => {
   if (!formGuard(n)) return;
   generatePdfBtn.disabled = true;
   try {
-    const blob = await buildPdf(noteTitle(n), tokenizeForm(n.content), null, false);
+    const blob = await buildPdf("", tokenizeForm(n.content), null, false);
     downloadBlob(safeName(n, ".pdf"), blob);
     closeModal(formModal);
   } catch (err) {
