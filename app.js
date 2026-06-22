@@ -93,6 +93,13 @@ const deleteAccountBtn = $("delete-account");
 
 const printArea = $("print-area");
 
+const formModal = $("form-modal");
+const formClose = $("form-close");
+const formInsert = $("form-insert");
+const formMsg = $("form-msg");
+const formPdfBtn = $("form-pdf-btn");
+const generatePdfBtn = $("generate-pdf");
+
 // ---------------------------------------------------------------------------
 // Config / state
 // ---------------------------------------------------------------------------
@@ -837,6 +844,171 @@ printBtn.addEventListener("click", () => {
   window.print();
 });
 
+// ---------------------------------------------------------------------------
+// Fillable PDF (AcroForm) generator
+// ---------------------------------------------------------------------------
+function insertAtCursor(text) {
+  const s = pad.selectionStart;
+  const e = pad.selectionEnd;
+  const v = pad.value;
+  pad.value = v.slice(0, s) + text + v.slice(e);
+  const c = s + text.length;
+  pad.setSelectionRange(c, c);
+  pad.focus();
+  onEdit();
+}
+
+// Markers like [text: Label], [area: Label], [check: Label], [date: Label],
+// [select: Label = A, B, C].
+const FIELD_RE = /\[(text|area|check|date|select)\s*:\s*([^\]=]+?)(?:\s*=\s*([^\]]+))?\]/i;
+
+async function buildFillablePdf(title, content) {
+  const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const form = doc.getForm();
+  const PW = 612, PH = 792, M = 50;
+  const ink = rgb(0.1, 0.1, 0.1);
+  let page = doc.addPage([PW, PH]);
+  let y = PH - M;
+  let idx = 0;
+
+  const ensure = (space) => {
+    if (y - space < M) {
+      page = doc.addPage([PW, PH]);
+      y = PH - M;
+    }
+  };
+  const drawWrapped = (text, size, f) => {
+    const maxW = PW - 2 * M;
+    let line = "";
+    const flush = () => {
+      ensure(size + 6);
+      page.drawText(line, { x: M, y: y - size, size, font: f, color: ink });
+      y -= size + 6;
+      line = "";
+    };
+    for (const w of text.split(/\s+/)) {
+      const test = line ? line + " " + w : w;
+      if (f.widthOfTextAtSize(test, size) > maxW && line) {
+        flush();
+        line = w;
+      } else line = test;
+    }
+    if (line) flush();
+  };
+  const fieldName = (kind, label) =>
+    `${kind}_${idx++}_${(label || "field").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 30)}`;
+
+  if (title && title.trim()) {
+    drawWrapped(title.trim(), 18, bold);
+    y -= 6;
+  }
+
+  for (const raw of (content || "").split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    if (!line.trim()) {
+      y -= 6;
+      continue;
+    }
+    const m = line.match(FIELD_RE);
+    if (!m) {
+      const h = line.match(/^(#{1,3})\s+(.*)/);
+      if (h) drawWrapped(h[2], h[1].length === 1 ? 16 : 14, bold);
+      else drawWrapped(line, 11, font);
+      continue;
+    }
+    const kind = m[1].toLowerCase();
+    const label = (m[2] || "").trim();
+    const opts = (m[3] || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const size = 11;
+
+    if (kind === "check") {
+      ensure(20);
+      const cb = form.createCheckBox(fieldName("check", label));
+      cb.addToPage(page, { x: M, y: y - 14, width: 12, height: 12, borderWidth: 1 });
+      page.drawText(label, { x: M + 20, y: y - 12, size, font, color: ink });
+      y -= 22;
+    } else if (kind === "area") {
+      ensure(16);
+      page.drawText(label, { x: M, y: y - size, size, font: bold, color: ink });
+      y -= size + 4;
+      const h = 60;
+      ensure(h + 6);
+      const tf = form.createTextField(fieldName("area", label));
+      tf.enableMultiline();
+      tf.addToPage(page, { x: M, y: y - h, width: PW - 2 * M, height: h, borderWidth: 1 });
+      y -= h + 8;
+    } else if (kind === "select" && opts.length) {
+      ensure(24);
+      const labelText = label + ":";
+      const lw = font.widthOfTextAtSize(labelText, size);
+      page.drawText(labelText, { x: M, y: y - 14, size, font, color: ink });
+      const dd = form.createDropdown(fieldName("select", label));
+      dd.addOptions(opts);
+      const fx = M + lw + 8;
+      dd.addToPage(page, { x: fx, y: y - 17, width: Math.max(120, PW - M - fx), height: 17, borderWidth: 1 });
+      y -= 26;
+    } else {
+      // text or date (or select with no options) → single-line text field
+      ensure(24);
+      const labelText = label + ":";
+      const lw = font.widthOfTextAtSize(labelText, size);
+      page.drawText(labelText, { x: M, y: y - 14, size, font, color: ink });
+      const tf = form.createTextField(fieldName(kind, label));
+      const fx = M + lw + 8;
+      tf.addToPage(page, { x: fx, y: y - 17, width: Math.max(120, PW - M - fx), height: 17, borderWidth: 1 });
+      y -= 26;
+    }
+  }
+
+  const bytes = await doc.save();
+  return new Blob([bytes], { type: "application/pdf" });
+}
+
+function openFormModal() {
+  closeMenu();
+  formMsg.textContent = "";
+  formMsg.className = "msg";
+  openModal(formModal);
+}
+formPdfBtn.addEventListener("click", openFormModal);
+formClose.addEventListener("click", () => closeModal(formModal));
+
+formInsert.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-snip]");
+  if (!btn) return;
+  insertAtCursor(btn.dataset.snip);
+  closeModal(formModal);
+});
+
+generatePdfBtn.addEventListener("click", async () => {
+  const n = currentDoc();
+  if (!n) return;
+  if (!window.PDFLib) {
+    formMsg.textContent = "PDF library failed to load. Check your connection.";
+    formMsg.className = "msg error";
+    return;
+  }
+  if (!FIELD_RE.test(n.content || "")) {
+    formMsg.textContent = "No field markers found — add e.g. [text: Name] first.";
+    formMsg.className = "msg error";
+    return;
+  }
+  generatePdfBtn.disabled = true;
+  try {
+    const blob = await buildFillablePdf(noteTitle(n), n.content);
+    downloadBlob(safeName(n, ".pdf"), blob);
+    closeModal(formModal);
+  } catch (err) {
+    formMsg.textContent = "Couldn't generate PDF: " + (err.message || err);
+    formMsg.className = "msg error";
+  } finally {
+    generatePdfBtn.disabled = false;
+  }
+});
+
 // Import .md/.txt files (button + drag-and-drop).
 importBtn.addEventListener("click", () => {
   closeMenu();
@@ -1087,6 +1259,7 @@ function paletteActions() {
     { label: "📥  Import file(s)", run: () => importInput.click() },
     { label: "🗜  Export all (.zip)", run: () => exportZipBtn.click() },
     { label: "🖨  Print / PDF", run: () => printBtn.click() },
+    { label: "📄  Fillable PDF", run: openFormModal },
     { label: "🗑  Open trash", run: openTrash },
     { label: "⚙️  Settings", run: () => settingsBtn.click() },
     { label: "🚪  Log out", run: () => logoutBtn.click() },
@@ -1154,11 +1327,11 @@ document.addEventListener("keydown", (e) => {
     if (palette.classList.contains("hidden")) openPalette();
     else closeModal(palette);
   } else if (e.key === "Escape") {
-    [palette, trashModal, settingsModal].forEach(closeModal);
+    [palette, trashModal, settingsModal, formModal].forEach(closeModal);
   }
 });
 // Click on an overlay backdrop closes it.
-[palette, trashModal, settingsModal].forEach((ov) =>
+[palette, trashModal, settingsModal, formModal].forEach((ov) =>
   ov.addEventListener("click", (e) => {
     if (e.target === ov) closeModal(ov);
   })
