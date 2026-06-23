@@ -119,7 +119,7 @@ python3 -m http.server 8000
 | `app.js`                      | All app logic (auth, notes, sync, UI).          |
 | `style.css`                   | Styles, theming, responsive/mobile layout.      |
 | `config.js`                   | Your Supabase URL and publishable key.          |
-| `schema.sql`, `migration.sql`, `migration-v3.sql` | Database table, RLS policies, and upgrades. |
+| `schema.sql`, `migration*.sql` | Database table, RLS policies, and upgrades. |
 | `sw.js`, `manifest.json`, `icon.svg` | PWA: offline cache and install metadata.  |
 | `robots.txt`, `sitemap.xml`, `og-image.svg` | SEO and social-preview assets.    |
 
