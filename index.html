@@ -243,12 +243,16 @@
         <span class="fill-title">Editing a shared note</span>
         <span id="pubedit-status" class="status">Loading…</span>
         <span class="spacer"></span>
+        <button id="pubedit-mode" class="icon-btn" title="Switch formatted / Markdown">Markdown</button>
         <a href="./" class="link-btn">Make your own →</a>
       </header>
       <div class="pubedit-wrap">
         <input id="pubedit-title" class="pubedit-title" placeholder="Untitled" />
-        <textarea id="pubedit-pad" class="pad-fallback"
-          placeholder="Edit this note… (Markdown supported)" spellcheck="true"></textarea>
+        <div class="editor-wrap">
+          <div id="pubedit-editor"></div>
+          <textarea id="pubedit-pad" class="pad-fallback hidden"
+            placeholder="Edit this note… (Markdown supported)" spellcheck="true"></textarea>
+        </div>
       </div>
     </div>
 
