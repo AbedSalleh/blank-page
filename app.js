@@ -240,6 +240,7 @@ function initEditor() {
           height: "100%",
           initialEditType: "wysiwyg",
           previewStyle: "tab",
+          hideModeSwitch: true,
           usageStatistics: false,
           autofocus: false,
           placeholder: "Start writing…",

@@ -1177,3 +1177,15 @@ button {
   background: none;
   padding: 0;
 }
+
+/* Collapse to two clean views: Formatted (editable preview) + Markdown source.
+   Hide the redundant read-only Markdown preview tab/pane so Markdown mode is
+   just the source editor full-width. */
+.toastui-editor-md-tab-container,
+.toastui-editor-md-splitter,
+.toastui-editor-md-preview {
+  display: none !important;
+}
+.toastui-editor-md-container .toastui-editor-md-editor {
+  width: 100% !important;
+}
