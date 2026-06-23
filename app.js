@@ -74,6 +74,8 @@ const pubeditView = $("pubedit");
 const pubeditTitle = $("pubedit-title");
 const pubeditPad = $("pubedit-pad");
 const pubeditStatus = $("pubedit-status");
+const pubeditEditorHost = $("pubedit-editor");
+const pubeditModeBtn = $("pubedit-mode");
 
 const guestLink = $("guest-link");
 const guestBanner = $("guest-banner");
@@ -2132,12 +2134,45 @@ let pubeditId = null;
 let pubeditTimer = null;
 let pubeditSaving = false;
 
+let pubEditor = null;
+let pubSuppress = false;
+let pubFallback = false;
+let pubWysiwyg = true;
+let pubReady = false;
+
+function pubGetValue() {
+  if (pubFallback) return pubeditPad.value;
+  return pubEditor ? pubEditor.getMarkdown() : "";
+}
+function pubSetValue(md) {
+  if (pubFallback) {
+    pubeditPad.value = md || "";
+    return;
+  }
+  if (!pubEditor) return;
+  pubSuppress = true;
+  pubEditor.setMarkdown(md || "", false);
+  pubSuppress = false;
+}
+function applyPubEditorTheme() {
+  if (!pubEditor || pubFallback) return;
+  const dark = document.documentElement.dataset.theme === "dark";
+  const root = pubeditEditorHost.querySelector(".toastui-editor-defaultUI");
+  if (root) root.classList.toggle("toastui-editor-dark", dark);
+}
+function pubUseFallback() {
+  pubFallback = true;
+  pubeditEditorHost.classList.add("hidden");
+  pubeditPad.classList.remove("hidden");
+  pubeditModeBtn.classList.add("hidden");
+  pubeditPad.addEventListener("input", onPublicEdit);
+}
+
 async function showPublicEdit(id) {
   showView(pubeditView);
   pubeditStatus.textContent = "Loading…";
   pubeditTitle.value = "";
-  pubeditPad.value = "";
-  pubeditTitle.disabled = pubeditPad.disabled = true;
+  pubeditTitle.disabled = true;
   const { data, error } = await client
     .from("notes")
     .select("title, content, editable")
@@ -2146,20 +2181,56 @@ async function showPublicEdit(id) {
   if (error || !data || !data.editable) {
     pubeditStatus.textContent = "";
     pubeditTitle.value = "Not available";
-    pubeditPad.value =
-      "This note doesn't exist or its owner has turned off editing.";
+    pubeditEditorHost.classList.add("hidden");
+    pubeditPad.classList.remove("hidden");
+    pubeditPad.value = "This note doesn't exist or its owner has turned off editing.";
+    pubeditPad.disabled = true;
     return;
   }
   pubeditId = id;
   pubeditTitle.value = data.title || "";
-  pubeditPad.value = data.content || "";
-  pubeditTitle.disabled = pubeditPad.disabled = false;
-  pubeditStatus.textContent = "Saved";
+  pubeditTitle.disabled = false;
   document.title = (data.title || "Shared note") + " — Blank Page";
+
+  if (!pubReady) {
+    const available = await ensureToastUi();
+    if (available && window.toastui && window.toastui.Editor) {
+      try {
+        pubEditor = new window.toastui.Editor({
+          el: pubeditEditorHost,
+          height: "100%",
+          initialEditType: "wysiwyg",
+          previewStyle: "tab",
+          hideModeSwitch: true,
+          usageStatistics: false,
+          autofocus: false,
+          placeholder: "Edit this note…",
+          events: { change: onPublicEdit },
+        });
+        applyPubEditorTheme();
+      } catch (e) {
+        console.error("Public editor failed; using textarea.", e);
+        pubUseFallback();
+      }
+    } else {
+      pubUseFallback();
+    }
+    pubReady = true;
+  }
+  pubSetValue(data.content || "");
+  pubeditStatus.textContent = "Saved";
   subscribePublicEdit(id);
 }
 
+pubeditModeBtn.addEventListener("click", () => {
+  if (pubFallback || !pubEditor) return;
+  pubWysiwyg = !pubWysiwyg;
+  pubEditor.changeMode(pubWysiwyg ? "wysiwyg" : "markdown", true);
+  pubeditModeBtn.textContent = pubWysiwyg ? "Markdown" : "Formatted";
+});
+
 function onPublicEdit() {
+  if (pubSuppress) return;
   pubeditStatus.textContent = "Saving…";
   clearTimeout(pubeditTimer);
   pubeditTimer = setTimeout(savePublicEdit, 600);
@@ -2171,7 +2242,7 @@ async function savePublicEdit() {
     .from("notes")
     .update({
       title: pubeditTitle.value,
-      content: pubeditPad.value,
+      content: pubGetValue(),
       updated_at: new Date().toISOString(),
     })
     .eq("id", pubeditId);
@@ -2188,14 +2259,17 @@ function subscribePublicEdit(id) {
       (payload) => {
         const row = payload.new;
         if (!row) return;
-        if (document.activeElement === pubeditPad || document.activeElement === pubeditTitle) return;
-        if (pubeditPad.value !== (row.content || "")) pubeditPad.value = row.content || "";
+        const editing =
+          document.activeElement === pubeditTitle ||
+          pubeditEditorHost.contains(document.activeElement) ||
+          document.activeElement === pubeditPad;
+        if (editing) return;
+        if (pubGetValue() !== (row.content || "")) pubSetValue(row.content || "");
         if (pubeditTitle.value !== (row.title || "")) pubeditTitle.value = row.title || "";
       }
     )
     .subscribe();
 }
-pubeditPad.addEventListener("input", onPublicEdit);
 pubeditTitle.addEventListener("input", onPublicEdit);
 
 // ---------------------------------------------------------------------------
