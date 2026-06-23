@@ -65,6 +65,15 @@ const shareToggle = $("share-toggle");
 const shareLinkRow = $("share-link-row");
 const shareLinkEl = $("share-link");
 const copyLinkBtn = $("copy-link");
+const editToggle = $("edit-toggle");
+const editLinkRow = $("edit-link-row");
+const editLinkEl = $("edit-link");
+const copyEditBtn = $("copy-edit");
+
+const pubeditView = $("pubedit");
+const pubeditTitle = $("pubedit-title");
+const pubeditPad = $("pubedit-pad");
+const pubeditStatus = $("pubedit-status");
 
 const guestLink = $("guest-link");
 const guestBanner = $("guest-banner");
@@ -120,7 +129,7 @@ const configured =
   cfg.SUPABASE_URL !== "YOUR_SUPABASE_URL" &&
   cfg.SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY";
 
-const COLS = "id, title, content, is_public, pinned, tags, updated_at, deleted_at";
+const COLS = "id, title, content, is_public, editable, pinned, tags, updated_at, deleted_at";
 const CACHE_KEY = "blankpage.notes.cache";
 const PENDING_KEY = "blankpage.pending"; // edits made offline, awaiting sync
 const GUEST_KEY = "blankpage.guest";
@@ -146,7 +155,7 @@ let usingFallback = false; // true if we fell back to the plain textarea
 // View helpers
 // ---------------------------------------------------------------------------
 function showView(view) {
-  [authView, appView, readerView, configError, recoveryView, fillView].forEach(
+  [authView, appView, readerView, configError, recoveryView, fillView, pubeditView].forEach(
     (v) => v.classList.add("hidden")
   );
   view.classList.remove("hidden");
@@ -1645,6 +1654,9 @@ function shareUrl(id) {
 function fillUrl(id) {
   return `${location.origin}${location.pathname}?fill=${id}`;
 }
+function editUrl(id) {
+  return `${location.origin}${location.pathname}?edit=${id}`;
+}
 function updateShareUI() {
   const n = activeNote();
   const isPublic = !!(n && n.is_public);
@@ -1655,7 +1667,35 @@ function updateShareUI() {
   const showFill = isPublic && n && hasFields(n.content || "");
   fillLinkBlock.classList.toggle("hidden", !showFill);
   if (showFill) fillLinkEl.value = fillUrl(n.id);
+  // Public edit link toggle.
+  const isEditable = !!(n && n.editable);
+  editToggle.checked = isEditable;
+  editLinkRow.classList.toggle("hidden", !isEditable);
+  if (isEditable && n) editLinkEl.value = editUrl(n.id);
 }
+editToggle.addEventListener("change", async () => {
+  const n = activeNote();
+  if (!n) return;
+  const makeEditable = editToggle.checked;
+  const { error } = await client.from("notes").update({ editable: makeEditable }).eq("id", n.id);
+  if (error) {
+    editToggle.checked = !makeEditable;
+    return reportDbError("Couldn't update edit sharing", error);
+  }
+  n.editable = makeEditable;
+  cacheNotes();
+  updateShareUI();
+});
+copyEditBtn.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(editLinkEl.value);
+    copyEditBtn.textContent = "Copied!";
+    setTimeout(() => (copyEditBtn.textContent = "Copy"), 1500);
+  } catch (_) {
+    editLinkEl.select();
+    document.execCommand("copy");
+  }
+});
 copyFillBtn.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(fillLinkEl.value);
@@ -2087,6 +2127,77 @@ async function showFillPublic(id) {
   openFillView(data.title || "Form", data.content, true);
 }
 
+// Public collaborative edit page (?edit=<id>) — no account needed.
+let pubeditId = null;
+let pubeditTimer = null;
+let pubeditSaving = false;
+
+async function showPublicEdit(id) {
+  showView(pubeditView);
+  pubeditStatus.textContent = "Loading…";
+  pubeditTitle.value = "";
+  pubeditPad.value = "";
+  pubeditTitle.disabled = pubeditPad.disabled = true;
+  const { data, error } = await client
+    .from("notes")
+    .select("title, content, editable")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data || !data.editable) {
+    pubeditStatus.textContent = "";
+    pubeditTitle.value = "Not available";
+    pubeditPad.value =
+      "This note doesn't exist or its owner has turned off editing.";
+    return;
+  }
+  pubeditId = id;
+  pubeditTitle.value = data.title || "";
+  pubeditPad.value = data.content || "";
+  pubeditTitle.disabled = pubeditPad.disabled = false;
+  pubeditStatus.textContent = "Saved";
+  document.title = (data.title || "Shared note") + " — Blank Page";
+  subscribePublicEdit(id);
+}
+
+function onPublicEdit() {
+  pubeditStatus.textContent = "Saving…";
+  clearTimeout(pubeditTimer);
+  pubeditTimer = setTimeout(savePublicEdit, 600);
+}
+async function savePublicEdit() {
+  if (!pubeditId || pubeditSaving) return;
+  pubeditSaving = true;
+  const { error } = await client
+    .from("notes")
+    .update({
+      title: pubeditTitle.value,
+      content: pubeditPad.value,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", pubeditId);
+  pubeditSaving = false;
+  pubeditStatus.textContent = error ? "Save failed (owner may have disabled editing)" : "Saved";
+}
+// Live-update the page if someone else (or the owner) changes it.
+function subscribePublicEdit(id) {
+  client
+    .channel("pubedit-" + id)
+    .on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "notes", filter: `id=eq.${id}` },
+      (payload) => {
+        const row = payload.new;
+        if (!row) return;
+        if (document.activeElement === pubeditPad || document.activeElement === pubeditTitle) return;
+        if (pubeditPad.value !== (row.content || "")) pubeditPad.value = row.content || "";
+        if (pubeditTitle.value !== (row.title || "")) pubeditTitle.value = row.title || "";
+      }
+    )
+    .subscribe();
+}
+pubeditPad.addEventListener("input", onPublicEdit);
+pubeditTitle.addEventListener("input", onPublicEdit);
+
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
@@ -2233,6 +2344,12 @@ function registerServiceWorker() {
   const fillId = params.get("fill");
   if (fillId) {
     showFillPublic(fillId);
+    return;
+  }
+
+  const editId = params.get("edit");
+  if (editId) {
+    showPublicEdit(editId);
     return;
   }
 

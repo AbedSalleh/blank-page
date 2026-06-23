@@ -1,7 +1,8 @@
--- Blank Page — Supabase schema (v3, multiple notes per user).
+-- Blank Page — Supabase schema (v4, multiple notes per user).
 -- Fresh installs: run this in your Supabase project's SQL Editor.
--- Already on v1? Run migration.sql, then migration-v3.sql.
--- Already on v2? Run migration-v3.sql to add pinning, tags, trash & realtime.
+-- Already on v1? Run migration.sql, then migration-v3.sql, then migration-v4.sql.
+-- Already on v2? Run migration-v3.sql, then migration-v4.sql.
+-- Already on v3? Run migration-v4.sql (adds public-edit links).
 
 create table if not exists public.notes (
   id         uuid primary key default gen_random_uuid(),
@@ -9,6 +10,7 @@ create table if not exists public.notes (
   title      text not null default 'Untitled',
   content    text not null default '',
   is_public  boolean not null default false,
+  editable   boolean not null default false,
   pinned     boolean not null default false,
   tags       text[] not null default '{}',
   deleted_at timestamptz,
@@ -51,6 +53,18 @@ drop policy if exists "public notes - read" on public.notes;
 create policy "public notes - read"
   on public.notes for select
   using (is_public = true);
+
+-- Anyone can read/update notes marked editable (powers public edit links).
+drop policy if exists "editable notes - read" on public.notes;
+create policy "editable notes - read"
+  on public.notes for select
+  using (editable = true);
+
+drop policy if exists "editable notes - update" on public.notes;
+create policy "editable notes - update"
+  on public.notes for update
+  using (editable = true)
+  with check (editable = true);
 
 -- Enable realtime (live cross-device sync) for the notes table.
 do $$
