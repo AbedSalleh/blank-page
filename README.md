@@ -34,6 +34,9 @@ cross-device sync — your notes live in a database, not just one browser.
 - 🤝 **Form-fill links** — share a `?fill=<id>` link so counterparties can fill a
   form (name, date, typed signature, etc.) with **no account** and download the
   finished PDF to send back.
+- ✍️ **Public edit links** — flip "Anyone with the link can edit" to share a
+  `?edit=<id>` link that lets others edit a note with **no account** (changes
+  sync live). Toggle it back off anytime to instantly revoke access.
 - 📥 **Import** `.md`/`.txt` files (button or drag-and-drop).
 - 📱 **Installable PWA** — add to your home screen; loads offline.
 - ⚡ **Guest mode** — skip the login and jot notes straight away; the scratchpad
@@ -65,7 +68,7 @@ This also enables Realtime on the `notes` table.
 
 > **Upgrading?**
 > - From the original single-note version: run [`migration.sql`](./migration.sql), then [`migration-v3.sql`](./migration-v3.sql).
-> - From the multi-note version: run [`migration-v3.sql`](./migration-v3.sql) (adds pinning, tags, trash, and Realtime).
+> - From the multi-note version: run [`migration-v3.sql`](./migration-v3.sql) then [`migration-v4.sql`](./migration-v4.sql).
 >
 > Migrations preserve your existing notes.
 

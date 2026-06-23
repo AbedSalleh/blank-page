@@ -197,6 +197,14 @@
               <button id="copy-fill" class="primary-sm">Copy</button>
             </div>
           </div>
+          <label class="share-row">
+            <input type="checkbox" id="edit-toggle" />
+            Anyone with the link can <strong>edit</strong> this note (no account)
+          </label>
+          <div id="edit-link-row" class="share-link-row hidden">
+            <input id="edit-link" class="share-link" readonly />
+            <button id="copy-edit" class="primary-sm">Copy</button>
+          </div>
         </div>
 
         <div id="tagbar" class="tagbar">
@@ -226,6 +234,21 @@
       </header>
       <div class="fill-scroll">
         <form id="fill-form" class="fill-form"></form>
+      </div>
+    </div>
+
+    <!-- Public collaborative edit view (?edit=<id>) -->
+    <div id="pubedit" class="fill-view hidden">
+      <header class="fill-bar">
+        <span class="fill-title">Editing a shared note</span>
+        <span id="pubedit-status" class="status">Loading…</span>
+        <span class="spacer"></span>
+        <a href="./" class="link-btn">Make your own →</a>
+      </header>
+      <div class="pubedit-wrap">
+        <input id="pubedit-title" class="pubedit-title" placeholder="Untitled" />
+        <textarea id="pubedit-pad" class="pad-fallback"
+          placeholder="Edit this note… (Markdown supported)" spellcheck="true"></textarea>
       </div>
     </div>
 

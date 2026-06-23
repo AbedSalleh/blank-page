@@ -1189,3 +1189,21 @@ button {
 .toastui-editor-md-container .toastui-editor-md-editor {
   width: 100% !important;
 }
+
+/* Public collaborative edit page (?edit=) */
+.pubedit-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.pubedit-title {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 0.85rem clamp(1rem, 6vw, 5rem);
+  outline: none;
+}
